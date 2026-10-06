@@ -1,0 +1,282 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token }}">
+<title>JOY University Bus Tracking • Real Road Campus Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+:root{--bg:#06101a;--panel:#0b1c2c;--line:#21425d;--text:#eff9ff;--muted:#91aabd;--blue:#25aee8;--green:#2dd4a0;--red:#fb7185;--yellow:#fbbf24}
+*{box-sizing:border-box}html,body{margin:0;background:radial-gradient(circle at 20% 0,#123b5a,#06101a 48%);color:var(--text);font-family:Inter,system-ui,Arial,sans-serif}
+button,input,textarea{font:inherit}button{cursor:pointer}.top{height:auto;min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#06111eee;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;backdrop-filter:blur(14px)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#0ea5e9,#2563eb);display:grid;place-items:center;font-size:22px}
+.nav{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.btn{border:1px solid var(--line);background:#0d2337;color:var(--text);padding:9px 12px;border-radius:10px;font-weight:800}.btn:hover{border-color:var(--blue)}.primary{background:linear-gradient(135deg,#0284c7,#2563eb);border:0}.danger{background:#451827;border-color:#7f1d1d}
+.wrap{max-width:1560px;margin:auto;padding:18px}.hero,.panel{background:linear-gradient(180deg,#0b1e31f2,#071320f2);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 60px #0006}.hero{padding:18px;margin-bottom:14px}.panel{overflow:hidden}.pad{padding:15px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.actions{display:flex;gap:7px;flex-wrap:wrap}.muted{color:var(--muted)}.small{font-size:12px}
+.grid{display:grid;grid-template-columns:330px 1fr;gap:14px}.buslist{padding:12px;max-height:640px;overflow:auto}.bus{padding:12px;border:1px solid var(--line);border-radius:12px;background:#071421;margin-bottom:8px;cursor:pointer}.bus:hover,.bus.sel{border-color:var(--blue);box-shadow:0 0 0 1px #38bdf844 inset}.pill{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#19324a}.live{background:#063c31;color:#6ee7b7}.demo{background:#43330a;color:#fde68a}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.stat{padding:13px;border:1px solid var(--line);border-radius:13px;background:#071421}.stat b{font-size:23px}
+.map-shell{position:relative;height:650px;background:#dfe8e1}.map-host{position:absolute;inset:0}.leaflet-container{font-family:Inter,system-ui,Arial,sans-serif;background:#dce7dd}.leaflet-control-zoom a{background:#071421!important;color:#fff!important;border-color:#21425d!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#071421;color:#fff;border:1px solid #21425d}.leaflet-popup-content{margin:12px}.bus-marker{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0284c7;border:3px solid #fff;box-shadow:0 4px 16px #0007;font-size:20px}.bus-marker.selected{background:#16a34a;transform:scale(1.12)}.bus-label{position:absolute;left:45px;top:9px;white-space:nowrap;color:#062238;font-weight:900;font-size:12px;text-shadow:0 1px 0 #fff,0 -1px 0 #fff}.map-canvas{display:block;width:100%;height:100%;cursor:grab}.map-tools{position:absolute;right:12px;top:12px;z-index:10;display:flex;flex-direction:column;gap:6px}.map-tools .btn{min-width:42px;padding:8px;background:#071421ef}.map-legend{position:absolute;left:12px;bottom:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;font-size:12px;z-index:10}.map-title{position:absolute;left:12px;top:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;z-index:10}
+.photo,.photo-caption{display:none}.campus-info{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{padding:12px;border:1px solid var(--line);border-radius:12px;background:#071421}
+.detail{margin-top:14px}.route{padding:11px;border:1px solid var(--line);border-radius:11px;background:#06111c;margin-top:9px}.notice{padding:11px;border:1px solid #155e75;border-radius:11px;background:#09283a;color:#bcecff;margin:9px 0}
+.input{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#04101b;color:white;margin:5px 0 9px}.auth{max-width:850px;margin:8vh auto;padding:18px}.toast{position:fixed;right:18px;bottom:18px;z-index:100;background:#0d2338;border:1px solid #2563eb;padding:13px 16px;border-radius:12px}.modal{position:fixed;inset:0;background:#000b;z-index:90;display:grid;place-items:center;padding:20px}.modalbox{width:min(650px,100%);background:#0a1b2c;border:1px solid var(--line);border-radius:18px;padding:20px;max-height:90vh;overflow:auto}
+.setting{display:block;padding:13px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:#06111c;cursor:pointer}.setting input{width:18px;height:18px;vertical-align:middle;margin-right:10px}.accessgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.accessgrid>div{padding:12px;border:1px solid var(--line);border-radius:10px;background:#06111c}.accessgrid b{font-size:12px;color:#86efac}.profile-card{display:flex;align-items:center;gap:15px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#06111c}.avatar{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#06a6d6,#2563eb);font-size:24px;font-weight:900}.leaflet-popup-content b{color:#7dd3fc}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.map-shell{height:520px}.campus-info{grid-template-columns:1fr}.photo{height:220px}}@media(max-width:650px){.stats{grid-template-columns:1fr 1fr}.top{align-items:flex-start}.nav{max-height:130px;overflow:auto}.map-shell{height:470px}}
+</style><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/socket.io/socket.io.js"></script>
+</head>
+<body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let me=null,buses=[],selected=null,gpsWatch=null,currentView='fleet',viewStack=[],paused=false,lastStop=null,notifyStops=true,filterMode='all',visualStates={},liveLoopRunning=false,roadRoutes={},roadLoading={},mapState={map:null,markers:{},routeLine:null,stopLayer:null,ready:false,fallback:false};
+const defaultSettings={follow:true,notifyStops:true,showLabels:true,autoRefresh:true,compactMap:false,reduceMotion:false};
+let appSettings={...defaultSettings,...JSON.parse(localStorage.getItem('joySettings')||'{}')};let follow=appSettings.follow;
+function saveSettings(){localStorage.setItem('joySettings',JSON.stringify(appSettings));follow=appSettings.follow;notifyStops=appSettings.notifyStops}
+function openView(name){if(currentView!==name)viewStack.push(currentView);openViewNoStack(name)}
+function openViewNoStack(name){currentView=name;({fleet,services:servicesPage,driver:driverPage,admin:adminPage,profile:profilePage,settings:settingsPage}[name]||fleet)()}
+function goBack(){const prev=viewStack.pop();openViewNoStack(prev||'fleet')}
+function goHome(){viewStack=[];openViewNoStack('fleet')}
+function applySettings(){saveSettings();toast('Settings saved');if(currentView==='fleet')fleet()}
+async function api(url,opt={}){const method=(opt.method||'GET').toUpperCase();const headers={'Content-Type':'application/json',...(opt.headers||{})};if(method!=='GET'&&method!=='HEAD')headers['X-CSRF-Token']=$('meta[name=csrf-token]')?.content||'';const r=await fetch(url,{headers,...opt});const j=await r.json().catch(()=>({error:'Invalid response'}));if(!r.ok)throw Error(j.error||'Request failed');return j}
+function toast(s){const t=$('#toast');if(!t)return;t.textContent=s;t.style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.style.display='none',3000)}
+function setupRealtime(){if(!window.io)return;try{const socket=io();socket.on('bus_update',e=>{const b=buses.find(x=>x.id===e.bus_id);if(b){b.lat=e.lat;b.lon=e.lon;b.speed=e.speed;b.heading=e.heading;b.accuracy=e.accuracy;b.live=true;b.gps_status='LIVE GPS';if(selected===b.id&&mapState.map&&mapState.markers[b.id])mapState.markers[b.id].setLatLng([e.lat,e.lon]);}});socket.on('emergency',e=>toast('🚨 EMERGENCY: '+(e.message||'New alert')));socket.on('trip_started',e=>{if(currentView==='fleet')toast('Trip started for bus #'+e.bus_id)});socket.on('trip_ended',e=>{if(currentView==='fleet')toast('Trip ended for bus #'+e.bus_id)});}catch(e){console.warn('Realtime unavailable',e)}}
+async function boot(){saveSettings();setupRealtime();try{const j=await api('/api/me');me=j.user;if(me)home();else login()}catch(e){login()}}
+function login(){$('#app').innerHTML=`<div class="auth"><div class="hero"><div class="brand"><div class="logo">🚌</div><div><div style="font-size:23px">JOY UNIVERSITY BUS TRACKING</div><div class="muted">CAMPUS LIVE MAP • STUDENT TRANSPORT</div></div></div><div class="notice">Campus-focused live map with moving buses, route stops, ETA and driver GPS. Road-map view only.</div></div><div class="panel pad"><h2>Login</h2><input id="li" class="input" placeholder="Email / University ID"><input id="lp" class="input" type="password" placeholder="Password"><button class="btn primary" style="width:100%" onclick="doLogin()">LOGIN</button><p class="muted small">Student: student@joyuniversity.edu / Student@123</p><p class="muted small">Driver: driver@joyuniversity.edu / Driver@123</p><p class="muted small">Admin: admin@joyuniversity.edu / Admin@123</p><hr style="border-color:#1e3a54"><h3>Student registration</h3><input id="rn" class="input" placeholder="Full name"><input id="re" class="input" placeholder="Email"><input id="rp" class="input" type="password" placeholder="Password (8+ characters)"><button class="btn" onclick="registerStudent()">CREATE ACCOUNT</button></div></div>`}
+async function doLogin(){try{const j=await api('/api/login',{method:'POST',body:JSON.stringify({identity:$('#li').value,password:$('#lp').value})});me=j.user;home()}catch(e){toast(e.message)}}
+async function registerStudent(){try{const j=await api('/api/register/student',{method:'POST',body:JSON.stringify({name:$('#rn').value,email:$('#re').value,password:$('#rp').value})});toast('Account created: '+j.uid)}catch(e){toast(e.message)}}
+async function logout(){const btn=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='LOGOUT');if(btn)btn.disabled=true;try{const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',credentials:'same-origin'});if(!r.ok)throw Error('Logout failed');}catch(e){console.warn(e)}finally{me=null;selected=null;try{sessionStorage.clear()}catch(_){};if(gpsWatch!==null){try{navigator.geolocation.clearWatch(gpsWatch)}catch(_){}};location.replace(location.pathname+'?loggedout='+Date.now())}}
+function home(){document.body.innerHTML=`<header class="top"><div class="brand" onclick="goHome()" style="cursor:pointer"><div class="logo">🚌</div><div>JOY UNIVERSITY BUS TRACKING<div class="muted small">${esc(me.name)} • ${esc(me.role)}</div></div></div><div class="nav"><button class="btn" onclick="goBack()">← BACK</button><button class="btn" onclick="goHome()">⌂ HOME</button><button class="btn primary" onclick="openView('fleet')">🗺️ CAMPUS MAP</button><button class="btn" onclick="openView('services')">SERVICES</button>${me.role==='driver'?'<button class="btn" onclick="openView(\'driver\')">DRIVER GPS</button>':''}${['admin','transport_manager','security'].includes(me.role)?'<button class="btn" onclick="openView(\'admin\')">CONTROL CENTER</button>':''}<button class="btn" onclick="openView('settings')">⚙ SETTINGS</button><button class="btn" onclick="openView('profile')">PROFILE</button><button class="btn danger" onclick="logout()">LOGOUT</button></div></header><main id="main" class="wrap"></main><div id="toast" class="toast" style="display:none"></div>`;openViewNoStack('fleet')}
+function settingsPage(){const canAdmin=['admin','transport_manager','security'].includes(me.role),canDriver=me.role==='driver';$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>⚙ Settings & Access</h1><div class="muted">Useful controls for the campus map and your account.</div></div><button class="btn" onclick="goBack()">← Back</button></div></div><div class="grid"><section class="panel pad"><h2>Campus Map</h2><label class="setting"><input type="checkbox" id="st_follow" ${appSettings.follow?'checked':''}> Follow selected bus automatically</label><label class="setting"><input type="checkbox" id="st_stop" ${appSettings.notifyStops?'checked':''}> Stop arrival notifications</label><label class="setting"><input type="checkbox" id="st_labels" ${appSettings.showLabels?'checked':''}> Show bus and stop labels</label><label class="setting"><input type="checkbox" id="st_refresh" ${appSettings.autoRefresh?'checked':''}> Automatic live refresh</label><label class="setting"><input type="checkbox" id="st_motion" ${appSettings.reduceMotion?'checked':''}> Reduce bus animation motion</label><label class="setting"><input type="checkbox" id="st_compact" ${appSettings.compactMap?'checked':''}> Compact map controls</label><div class="actions"><button class="btn primary" onclick="saveSettingsForm()">SAVE SETTINGS</button><button class="btn" onclick="resetSettings()">RESET</button></div></section><section class="panel pad"><h2>🔐 Access</h2><div class="route"><b>Role:</b> ${esc(me.role)}<br><span class="muted">Features are enabled according to your account.</span></div><div class="accessgrid"><div>🗺️ Campus map<br><b>ENABLED</b></div><div>📍 GPS tracking<br><b>${canDriver?'ENABLED':'VIEW ONLY'}</b></div><div>📝 Services<br><b>ENABLED</b></div><div>👤 Profile<br><b>ENABLED</b></div><div>🚨 Emergency<br><b>ENABLED</b></div><div>⚙ Settings<br><b>ENABLED</b></div><div>🛡️ Control center<br><b>${canAdmin?'ENABLED':'RESTRICTED'}</b></div><div>👨‍✈️ Driver console<br><b>${canDriver?'ENABLED':'RESTRICTED'}</b></div></div></section></div><br><section class="panel pad"><h2>Quick Access</h2><div class="actions"><button class="btn primary" onclick="openView('fleet')">CAMPUS MAP</button><button class="btn" onclick="openView('services')">SERVICES</button>${canDriver?'<button class="btn" onclick="openView(\'driver\')">DRIVER GPS</button>':''}${canAdmin?'<button class="btn" onclick="openView(\'admin\')">CONTROL CENTER</button>':''}<button class="btn" onclick="openView('profile')">PROFILE</button></div></section>`}
+function saveSettingsForm(){appSettings={follow:$('#st_follow').checked,notifyStops:$('#st_stop').checked,showLabels:$('#st_labels').checked,autoRefresh:$('#st_refresh').checked,reduceMotion:$('#st_motion').checked,compactMap:$('#st_compact').checked};applySettings()}
+function resetSettings(){appSettings={...defaultSettings};saveSettings();settingsPage();toast('Settings reset')}
+
+async function fleet(){currentView='fleet';follow=appSettings.follow;notifyStops=appSettings.notifyStops;try{const j=await api('/api/buses');buses=j.buses}catch(e){toast(e.message);return}if(selected===null)selected=buses[0]?.id||null;$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>🚌 JOY UNIVERSITY CAMPUS BUS MAP</h1><div class="muted">Live driver GPS when connected • smooth campus demo when offline • route, ETA, speed, occupancy and stops.</div></div><div class="actions"><button class="btn primary" onclick="mapFollowSelected()">🎯 FOLLOW BUS</button><button class="btn" onclick="togglePause()"><span id="pauseText">${paused?'▶ RESUME':'⏸ PAUSE'}</span></button><button class="btn" onclick="mapFitFleet()">▣ ALL BUSES</button><button class="btn" onclick="mapCampus()">⌂ CAMPUS</button></div></div><div class="notice">🛣️ Real road map when online (OpenStreetMap) • selected bus route is road-routed through its stops • smooth live/demo movement • offline fallback remains available.</div><div class="stats"><div class="stat">Fleet<br><b>${buses.length}</b></div><div class="stat">Moving<br><b id="movingCount">${buses.filter(b=>b.speed>3).length}</b></div><div class="stat">Live GPS<br><b id="liveCount">${buses.filter(b=>b.live).length}</b></div><div class="stat">Avg Speed<br><b id="avgSpeed">${(buses.reduce((a,b)=>a+b.speed,0)/Math.max(1,buses.length)).toFixed(1)} km/h</b></div></div></div><div class="grid"><section class="panel"><div class="pad"><input id="search" class="input" placeholder="🔎 Search bus, route or stop…" oninput="renderList()"><div class="actions"><button class="btn" onclick="setFilter('all')">ALL</button><button class="btn" onclick="setFilter('live')">LIVE GPS</button><button class="btn" onclick="setFilter('moving')">MOVING</button><button class="btn" onclick="setFilter('slow')">SLOW</button></div></div><div id="buslist" class="buslist"></div></section><section><div class="panel"><div class="map-shell" id="mapShell"><div id="liveMap" class="map-host"></div><div class="map-title"><b>📍 JOY UNIVERSITY CAMPUS</b><br><span class="small muted">Live bus positions</span></div><div class="map-tools"><button class="btn" onclick="mapZoom(1)">＋</button><button class="btn" onclick="mapZoom(-1)">−</button><button class="btn" onclick="mapFollowSelected()">🎯</button><button class="btn" onclick="mapFitFleet()">▣</button><button class="btn" onclick="mapCampus()">⌂</button><button class="btn" onclick="centerNextStop()">📍</button><button class="btn" onclick="loadRoadRoute(buses.find(x=>x.id===selected));toast('Refreshing road route…')">🛣️</button><button class="btn" onclick="mapReset()">↻</button><button class="btn" onclick="mapFullscreen()">⛶</button></div><div class="map-legend">🟢 Selected bus &nbsp; 🔵 Other buses &nbsp; 🟡 Stops &nbsp; 🟣 Facilities</div></div><div class="pad"><div class="row"><b>LIVE CAMPUS MAP</b><span id="mapStatus" class="small muted">Tracking ${esc(buses.find(x=>x.id===selected)?.number||'bus')}</span></div></div></div><div class="panel detail" id="detail"></div></section></div>`;renderList();initMap();selectBus(selected);if(!liveLoopRunning){liveLoopRunning=true;liveLoop()};startMapAnimation()}
+
+function setFilter(v){filterMode=v;renderList()}
+function renderList(){const el=$('#buslist');if(!el)return;const q=($('#search')?.value||'').toLowerCase();const list=buses.filter(b=>{const text=(b.number+' '+b.route+' '+b.stops.join(' ')).toLowerCase();const ok=text.includes(q),fm=filterMode==='all'||(filterMode==='live'&&b.live)||(filterMode==='moving'&&b.speed>3)||(filterMode==='slow'&&b.speed<=15);return ok&&fm});el.innerHTML=list.map(b=>`<div class="bus ${selected===b.id?'sel':''}" onclick="selectBus(${b.id})"><div class="row"><b>🚌 ${esc(b.number)}</b><span class="pill ${b.live?'live':'demo'}">${b.live?'● LIVE':'◉ DEMO'}</span></div><div class="small muted">${esc(b.route)}</div><div class="small">${b.speed} km/h • ${esc(b.next_stop)} • ETA ${b.eta_minutes} min</div><div style="height:5px;background:#122a3d;border-radius:5px;margin-top:8px"><div style="height:100%;width:${Math.round((b.progress||0)*100)}%;background:#22d3ee;border-radius:5px"></div></div><div class="small muted" style="margin-top:5px">${b.passengers}/${b.capacity} passengers • ${trafficLabel(b.speed)}</div></div>`).join('')||'<div class="pad muted">No buses match this filter.</div>'}
+function trafficLabel(speed){return speed<12?'🔴 Slow traffic':speed<28?'🟡 Normal traffic':'🟢 Moving well'}
+function togglePause(){paused=!paused;const x=$('#pauseText');if(x)x.textContent=paused?'▶ RESUME':'⏸ PAUSE';toast(paused?'Bus animation paused':'Bus animation resumed')}
+
+const CAMPUS_LAT=8.2436,CAMPUS_LON=77.6058;
+const FACILITIES=[['Main Gate',-2,0],['Administrative Block',-12,-8],['Library',2,-6],['Student Activity Centre',-7,10],['Hostel',12,5],['Laboratories',-18,9],['Sports Ground',18,14],['Transport Area',-18,-13],['Medical Centre',9,-11],['Pharmacy',13,-9],['Cafeteria',4,10]];
+function initMap(){
+  const host=$('#liveMap'); if(!host)return;
+  if(window.L){
+    mapState.map=L.map(host,{zoomControl:true,preferCanvas:true}).setView([CAMPUS_LAT,CAMPUS_LON],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'}).addTo(mapState.map);
+    mapState.stopLayer=L.layerGroup().addTo(mapState.map); mapState.ready=true; mapState.fallback=false;
+    window.addEventListener('resize',()=>setTimeout(()=>mapState.map&&mapState.map.invalidateSize(),100));
+    buses.forEach(b=>ensureBusMarker(b));
+    setTimeout(()=>loadRoadRoute(buses.find(x=>x.id===selected)),250);
+    updateLeafletMap();
+  }else{
+    mapState.fallback=true; host.innerHTML='<canvas class="map-canvas"></canvas>';
+    const canvas=host.querySelector('canvas'); mapState.canvas=canvas; mapState.ctx=canvas.getContext('2d');
+    canvas.addEventListener('click',fallbackMapClick); canvas.addEventListener('wheel',e=>{e.preventDefault();fallbackZoom(e.deltaY<0?1:-1)},{passive:false});
+    fallbackResize();
+  }
+}
+function rawBusState(b){
+  return {lat:Number(b.lat)||CAMPUS_LAT,lon:Number(b.lon)||CAMPUS_LON,progress:Number(b.progress)||0};
+}
+function buildOfflineRoad(b){
+  const coords=fallbackRouteForBus(b);
+  const stopCoords=[];
+  for(let i=0;i<b.stops.length;i++){
+    const t=b.stops.length===1?0:i/(b.stops.length-1);
+    stopCoords.push(pointOnRoad(coords,t));
+  }
+  return {coords,stopCoords};
+}
+async function loadRoadRoute(b){
+  if(!b)return;
+  // The demo route is deliberately local and deterministic, so movement works
+  // even with no GPS and even if the external routing service is unavailable.
+  roadRoutes[b.id]=buildOfflineRoad(b);
+  if(mapState.map)renderSelectedRoadRoute(b);
+  // If this bus is currently selected, restart from its visible position on the
+  // newly loaded route without moving any other bus.
+  if(Number(selected)===Number(b.id))startSelectedBusMovement(b);
+  return roadRoutes[b.id];
+}
+function renderSelectedRoadRoute(b){
+  if(!mapState.map||!b)return;
+  const rr=roadRoutes[b.id]||buildOfflineRoad(b); roadRoutes[b.id]=rr;
+  if(mapState.routeLine){mapState.map.removeLayer(mapState.routeLine);mapState.routeLine=null}
+  mapState.routeLine=L.polyline(rr.coords,{color:'#2563eb',weight:6,opacity:.72}).addTo(mapState.map);
+  if(mapState.stopLayer){mapState.stopLayer.clearLayers();rr.stopCoords.forEach((p,i)=>L.circleMarker(p,{radius:6,weight:2,fillOpacity:.95,color:'#f59e0b',fillColor:'#fbbf24'}).bindTooltip(b.stops[i]||'Stop').addTo(mapState.stopLayer));}
+}
+function drawMap(){
+  if(mapState.map){updateLeafletMap();const b=buses.find(x=>Number(x.id)===Number(selected));if(b)renderSelectedRoadRoute(b);}
+  else if(mapState.canvas)drawFallbackMap();
+}
+
+function markerVisualPosition(b){
+  const m=busMotion[b.id];
+  if(m&&m.current)return m.current;
+  return getBusLatLng(b);
+}
+function ensureBusMarker(b){
+  if(!mapState.map||!window.L)return;
+  const pos=markerVisualPosition(b),sel=b.id===selected;
+  let m=mapState.markers[b.id];
+  const html='<div class="bus-marker '+(sel?'selected':'')+'">🚌<span class="bus-label">'+esc(b.number)+'</span></div>';
+  if(!m){
+    m=L.marker(pos,{icon:L.divIcon({className:'',html,iconSize:[42,42],iconAnchor:[21,21]}),title:b.number}).addTo(mapState.map);
+    m.on('click',()=>{selectBus(b.id);mapFollowSelected();});
+    mapState.markers[b.id]=m;
+  }else{
+    // Do NOT overwrite the marker position here. The movement engine owns it.
+    m.__selected=sel;
+    const el=m.getElement();
+    if(el){const icon=el.querySelector('.bus-marker');if(icon)icon.classList.toggle('selected',sel);}
+  }
+}
+function getBusLatLng(b){
+  if(b.live)return [b.lat,b.lon];
+  const rr=roadRoutes[b.id];
+  if(rr&&rr.coords.length)return pointOnRoad(rr.coords,Math.max(0,Math.min(1,b.progress||0)));
+  const p=b.path||[[0,0],[1,1]],q=(b.progress||0)*(p.length-1),i=Math.min(p.length-2,Math.floor(q)),f=q-i;
+  return [CAMPUS_LAT+(p[i][1]+(p[i+1][1]-p[i][1])*f)*.004,CAMPUS_LON+(p[i][0]+(p[i+1][0]-p[i][0])*f)*.004];
+}
+function pointOnRoad(coords,t){
+  if(coords.length===1)return coords[0]; let total=0,seg=[];
+  for(let i=1;i<coords.length;i++){const d=Math.hypot((coords[i][0]-coords[i-1][0])*111000,(coords[i][1]-coords[i-1][1])*111000*Math.cos(CAMPUS_LAT*Math.PI/180));seg.push(d);total+=d}
+  let want=t*total;
+  for(let i=0;i<seg.length;i++){if(want<=seg[i]){const f=seg[i]?want/seg[i]:0;return [coords[i][0]+(coords[i+1][0]-coords[i][0])*f,coords[i][1]+(coords[i+1][1]-coords[i][1])*f]}want-=seg[i]}
+  return coords[coords.length-1];
+}
+
+const busMotion={};
+function fallbackRouteForBus(b){
+  // Offline demo route: the project's existing route shape, expanded into
+  // several points so movement is visibly continuous rather than a jump.
+  const p=b.path||[[0,0],[5,3],[10,6],[16,9],[23,12]];
+  const out=[];
+  for(let i=0;i<p.length-1;i++){
+    const [x1,y1]=p[i],[x2,y2]=p[i+1];
+    for(let j=0;j<12;j++){
+      const t=j/12;
+      out.push([CAMPUS_LAT+(y1+(y2-y1)*t)*.004,CAMPUS_LON+(x1+(x2-x1)*t)*.004]);
+    }
+  }
+  const q=p[p.length-1];out.push([CAMPUS_LAT+q[1]*.004,CAMPUS_LON+q[0]*.004]);
+  return out;
+}
+function movementRoute(b){
+  const rr=roadRoutes[b.id];
+  return rr&&rr.coords&&rr.coords.length>1 ? rr.coords : fallbackRouteForBus(b);
+}
+function nearestRouteIndex(coords,pos){
+  let best=0,bd=Infinity;
+  coords.forEach((p,i)=>{const d=(p[0]-pos[0])**2+(p[1]-pos[1])**2;if(d<bd){bd=d;best=i}});
+  return best;
+}
+function startSelectedBusMovement(b){
+  if(!b)return;
+  const coords=movementRoute(b);
+  const pos=markerVisualPosition(b);
+  let idx=nearestRouteIndex(coords,pos);
+  if(idx>=coords.length-1)idx=0;
+  busMotion[b.id]={
+    coords,index:idx,from:[pos[0],pos[1]],to:coords[Math.min(idx+1,coords.length-1)],
+    t:0,current:[pos[0],pos[1]],active:true
+  };
+  Object.keys(busMotion).forEach(k=>{if(Number(k)!==Number(b.id))busMotion[k].active=false});
+  if($('#mapStatus'))$('#mapStatus').textContent='Moving '+b.number+' • selected bus';
+}
+function updateSelectedBusMovement(dt){
+  const b=buses.find(x=>Number(x.id)===Number(selected));
+  if(!b||paused)return;
+  let m=busMotion[b.id];
+  if(!m||!m.active){startSelectedBusMovement(b);m=busMotion[b.id];}
+  // Move a visible distance every animation frame. The speed is intentionally
+  // demo-friendly so the user can clearly see the marker traveling.
+  const segmentSeconds=1.8;
+  m.t+=dt/segmentSeconds;
+  while(m.t>=1){
+    m.t-=1;m.index++;
+    if(m.index>=m.coords.length-1)m.index=0;
+    m.from=m.coords[m.index];m.to=m.coords[m.index+1];
+  }
+  const e=m.t*m.t*(3-2*m.t);
+  m.current=[m.from[0]+(m.to[0]-m.from[0])*e,m.from[1]+(m.to[1]-m.from[1])*e];
+  const marker=mapState.markers[b.id];
+  if(marker)marker.setLatLng(m.current);
+  if(follow&&mapState.map)mapState.map.panTo(m.current,{animate:false});
+  if(!mapState.map&&mapState.canvas)drawFallbackMap();
+  if($('#mapStatus'))$('#mapStatus').textContent='🟢 '+b.number+' is moving on the route';
+}
+function updateLeafletMap(){
+  if(!mapState.map)return;
+  buses.forEach(ensureBusMarker);
+  Object.keys(mapState.markers).forEach(id=>{
+    if(!buses.some(b=>String(b.id)===String(id))){
+      mapState.map.removeLayer(mapState.markers[id]);delete mapState.markers[id];
+    }
+  });
+  // Marker coordinates are updated only by updateSelectedBusMovement().
+}
+function startMapAnimation(){
+  if(window.__joyMapAnim)return;
+  let last=performance.now();
+  const frame=(now)=>{
+    window.__joyMapAnim=requestAnimationFrame(frame);
+    const dt=Math.min(.05,(now-last)/1000);last=now;
+    if(paused)return;
+    if(mapState.map){updateLeafletMap();updateSelectedBusMovement(dt);}
+    else if(mapState.canvas){updateSelectedBusMovement(dt);drawFallbackMap();}
+  };
+  window.__joyMapAnim=requestAnimationFrame(frame);
+}
+function mapClick(e){if(mapState.map)return}
+function mapZoom(dir){if(mapState.map){dir>0?mapState.map.zoomIn():mapState.map.zoomOut()}else fallbackZoom(dir)}
+function mapFollowSelected(){const b=buses.find(x=>x.id===selected);if(!b)return;follow=true;loadRoadRoute(b);if(mapState.map)mapState.map.setView(getBusLatLng(b),17,{animate:true});toast('Following '+b.number)}
+function mapFitFleet(){if(mapState.map){const pts=buses.map(getBusLatLng);if(pts.length)mapState.map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});toast('Showing all buses')}else fallbackFitFleet()}
+function mapCampus(){if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],14,{animate:true});toast('JOY University campus')}else fallbackCampus()}
+function mapReset(){if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],14,{animate:true});follow=appSettings.follow;toast('Map reset')}else fallbackCampus()}
+function centerNextStop(){const b=buses.find(x=>x.id===selected);if(!b)return;const rr=roadRoutes[b.id];if(mapState.map&&rr&&rr.stopCoords.length){const idx=Math.max(0,b.stops.indexOf(b.next_stop)),p=rr.stopCoords[Math.min(idx,rr.stopCoords.length-1)];mapState.map.setView(p,17,{animate:true});toast('Next stop: '+b.next_stop)}else{loadRoadRoute(b);toast('Loading road route for '+b.number)}}
+async function mapFullscreen(){const el=$('#mapShell');if(!el)return;try{if(!document.fullscreenElement)await el.requestFullscreen();else await document.exitFullscreen();setTimeout(()=>mapState.map&&mapState.map.invalidateSize(),200)}catch(e){toast('Fullscreen not available')}}
+function focusMapOnBus(b){if(!b)return;if(mapState.map){mapState.map.setView(getBusLatLng(b),17,{animate:true});loadRoadRoute(b)}else{toast('Map fallback mode')}}
+function selectBus(id){
+  selected=Number(id);
+  const b=buses.find(x=>Number(x.id)===selected);
+  if(!b)return;
+  renderList(); showDetail(b);
+  loadRoadRoute(b);
+  if(follow)focusMapOnBus(b);
+  if(mapState.map)renderSelectedRoadRoute(b); else drawFallbackMap();
+  startSelectedBusMovement(b);
+}
+// Offline fallback: keep a usable campus map if Leaflet/OSM cannot load.
+function fallbackResize(){const c=mapState.canvas,h=$('#liveMap');const d=devicePixelRatio||1;c.width=h.clientWidth*d;c.height=h.clientHeight*d;c.style.width=h.clientWidth+'px';c.style.height=h.clientHeight+'px';mapState.ctx.setTransform(d,0,0,d,0,0);drawFallbackMap()}
+function fallbackPoint(x,z){const c=mapState.canvas;return [c.clientWidth/2+x*18,c.clientHeight/2+z*18]}
+function drawFallbackMap(){const c=mapState.canvas,ctx=mapState.ctx;if(!c)return;ctx.fillStyle='#dce7dd';ctx.fillRect(0,0,c.clientWidth,c.clientHeight);ctx.strokeStyle='#f8fbf8';ctx.lineWidth=9;for(let x=-100;x<c.clientWidth+100;x+=120){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,c.clientHeight);ctx.stroke()}for(let y=-100;y<c.clientHeight+100;y+=120){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(c.clientWidth,y);ctx.stroke()}for(const b of buses){const p=markerVisualPosition(b),q=fallbackPoint((p[1]-CAMPUS_LON)/.004,(p[0]-CAMPUS_LAT)/.004);ctx.beginPath();ctx.arc(q[0],q[1],b.id===selected?13:9,0,7);ctx.fillStyle=b.id===selected?'#16a34a':'#0284c7';ctx.fill();ctx.strokeStyle='#fff';ctx.stroke();ctx.fillStyle='#08243a';ctx.font='bold 12px Arial';ctx.fillText(b.number,q[0]+15,q[1]+4)} }
+function fallbackZoom(d){toast('Online road map unavailable; browser zoom fallback active')}
+function fallbackCampus(){drawFallbackMap()}
+function fallbackFitFleet(){drawFallbackMap()}
+function fallbackMapClick(e){const r=mapState.canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let hit=null,best=30;for(const b of buses){const p=getBusLatLng(b),q=fallbackPoint((p[1]-CAMPUS_LON)/.004,(p[0]-CAMPUS_LAT)/.004),d=Math.hypot(q[0]-x,q[1]-y);if(d<best){hit=b;best=d}}if(hit)selectBus(hit.id)}
+function showDetail(b){const d=$('#detail');if(!d)return;const progress=Math.round((b.progress||0)*100),load=Math.round((b.passengers/b.capacity)*100);d.innerHTML=`<div class="pad"><div class="row"><div><h2>🚌 ${esc(b.number)}</h2><div class="muted">${esc(b.route)}</div></div><span class="pill ${b.live?'live':'demo'}">${b.live?'● LIVE GPS':'◉ DEMO'}</span></div><div class="notice"><b>${trafficLabel(b.speed)}</b> • ${b.speed} km/h • Next stop <b>${esc(b.next_stop)}</b> • ETA <b>${b.eta_minutes} min</b> • Destination <b>${esc(b.destination)}</b></div><div style="height:9px;background:#122a3d;border-radius:8px;overflow:hidden"><div style="height:100%;width:${progress}%;background:#22d3ee"></div></div><div class="small muted" style="margin:5px 0 12px">Route progress ${progress}% • ${b.route_km||'—'} km route • ${esc(b.gps_status)}</div><div class="campus-info"><div class="card">Speed<br><b>${b.speed} km/h</b><br><span class="muted">${trafficLabel(b.speed)}</span></div><div class="card">Next Stop<br><b>${esc(b.next_stop)}</b><br><span class="muted">ETA ${b.eta_minutes} min</span></div><div class="card">Passengers<br><b>${b.passengers}/${b.capacity}</b><br><span class="muted">${load}% occupied</span></div><div class="card">Position<br><b>${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}</b>${b.accuracy?'<br><span class="muted">±'+Number(b.accuracy).toFixed(0)+' m</span>':''}</div></div><div class="route"><b>Stops</b><br>${b.stops.map(x=>`<span class="pill" style="margin:3px;display:inline-block">${x===b.next_stop?'📍 ':''}${esc(x)}</span>`).join('')}</div><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="mapFollowSelected()">🎯 FOLLOW</button><button class="btn" onclick="focusMapOnBus(buses.find(x=>x.id===selected))">🗺️ MAP</button><button class="btn" onclick="centerNextStop()">📍 NEXT STOP</button><button class="btn danger" onclick="sendEmergency(${b.id})">🚨 EMERGENCY</button>${me.role==='student'?'<button class="btn" onclick="addFavorite('+b.id+')">⭐ FAVORITE</button><button class="btn" onclick="board('+b.id+',\''+esc(b.next_stop)+'\')">📱 BOARD</button>':''}</div></div>`}
+async function liveLoop(){try{if(!appSettings.autoRefresh){ }else{const j=await api('/api/buses'),incoming=j.buses;const old=buses;for(const nb of incoming){const ob=old.find(x=>x.id===nb.id);if(ob){visualStates[nb.id]={from:rawBusState(ob),to:rawBusState(nb),at:performance.now(),duration:appSettings.reduceMotion?400:1600}}if(ob&&selected===nb.id&&lastStop&&lastStop!==nb.next_stop&&notifyStops)toast('📍 Approaching '+nb.next_stop)}buses=incoming;const sb=buses.find(x=>x.id===selected);if(sb)lastStop=sb.next_stop;renderList();if(sb)showDetail(sb);const m=buses.filter(b=>b.speed>3).length,l=buses.filter(b=>b.live).length,a=buses.reduce((s,b)=>s+b.speed,0)/Math.max(1,buses.length);if($('#movingCount'))$('#movingCount').textContent=m;if($('#liveCount'))$('#liveCount').textContent=l;if($('#avgSpeed'))$('#avgSpeed').textContent=a.toFixed(1)+' km/h';drawMap()}}catch(e){console.error(e)}setTimeout(liveLoop,1000)}
+function profilePage(){currentView='profile';const initials=String(me.name||'JU').split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>👤 Profile</h1><div class="muted">Your JOY University transport profile.</div></div><button class="btn" onclick="goBack()">← Back</button></div></div><div class="grid"><section class="panel pad"><div class="profile-card"><div class="avatar">${initials}</div><div><h2 style="margin:0">${esc(me.name)}</h2><div class="muted">${esc(me.role)}</div><div class="small muted">${esc(me.uid||'')}</div></div></div><div class="campus-info" style="margin-top:14px"><div class="card"><b>Email</b><br>${esc(me.email)}</div><div class="card"><b>Access</b><br>Map • Services • Settings</div></div></section><section class="panel pad"><h2>Campus Transport</h2><div class="notice">Road-map view only. Road-map view only.</div></section></div><br><section class="panel pad"><h2>Campus Transport</h2><div class="notice">Raja Nagar, Vadakangulam, Near Kanyakumari, Tirunelveli District, Tamil Nadu 627116</div><div class="actions"><button class="btn primary" onclick="openView('fleet')">🗺️ OPEN LIVE MAP</button><button class="btn" onclick="openView('settings')">⚙ SETTINGS</button></div></section>`}
+async function servicesPage(){currentView='services';try{const[n,c,a]=await Promise.all([api('/api/notifications'),api('/api/complaints'),api('/api/attendance')]);$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>Student Transport Services</h1><div class="muted">Notifications, complaints and boarding history.</div></div><button class="btn" onclick="goBack()">← Back</button></div></div><div class="grid" style="grid-template-columns:1fr 1fr"><section class="panel pad"><h2>🔔 Notifications</h2>${n.items.length?n.items.map(x=>`<div class="route"><b>${esc(x.title)}</b><br>${esc(x.message)}<br><span class="small muted">${esc(x.created_at)}</span></div>`).join(''):'<div class="muted">No notifications.</div>'}</section><section class="panel pad"><h2>📝 New Complaint</h2><input id="cs" class="input" placeholder="Subject"><textarea id="cm" class="input" rows="5" placeholder="Describe the issue"></textarea><button class="btn primary" onclick="submitComplaint()">SUBMIT COMPLAINT</button></section></div><br><div class="grid" style="grid-template-columns:1fr 1fr"><section class="panel pad"><h2>My Complaints</h2>${c.items.length?c.items.map(x=>`<div class="route"><div class="row"><b>#${x.id} ${esc(x.subject)}</b><span class="pill">${esc(x.status)}</span></div>${esc(x.message)}<br><span class="small muted">${esc(x.created_at)}</span></div>`).join(''):'<div class="muted">No complaints.</div>'}</section><section class="panel pad"><h2>🚌 Boarding History</h2><div class="actions"><button class="btn" onclick="adminPage()">↻ REFRESH ALL</button><button class="btn" onclick="openView('fleet')">🗺️ LIVE MAP</button><button class="btn" onclick="openView('settings')">⚙ SYSTEM SETTINGS</button></div>${a.items.length?a.items.map(x=>`<div class="route"><b>${esc(x.bus_number||'Bus')}</b> • ${esc(x.stop_name||'Stop')}<br><span class="small muted">${esc(x.boarded_at)}</span></div>`).join(''):'<div class="muted">No boarding records yet.</div>'}</section></div>`}catch(e){toast(e.message)}}
+async function submitComplaint(){const subject=$('#cs').value.trim(),message=$('#cm').value.trim();if(!subject||!message)return toast('Subject and message are required');try{await api('/api/complaints',{method:'POST',body:JSON.stringify({subject,message,bus_id:selected})});toast('Complaint submitted');servicesPage()}catch(e){toast(e.message)}}
+function driverPage(){currentView='driver';$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>🚍 Driver Dashboard</h1><div class="muted">Assigned bus only • mobile-friendly live GPS control</div></div><button class="btn" onclick="goBack()">← Back</button></div><div id="driverSummary" class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px"></div><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="startDriverTrip()">▶ START TRIP</button><button class="btn" onclick="endDriverTrip()">■ END TRIP</button><button class="btn" onclick="startGPS()">📡 START LIVE GPS</button><button class="btn danger" onclick="stopGPS()">STOP GPS</button></div><div id="gps" class="notice">Checking driver assignment…</div></div><div class="grid"><section class="panel pad"><h2>Assigned Bus & Route</h2><div id="driverBusInfo" class="muted">Loading…</div><div id="driverStops" class="route"></div></section><section class="panel pad"><h2>⚠️ Report Problem</h2><select id="problemType" class="input"><option>BREAKDOWN</option><option>ACCIDENT</option><option>DELAY</option><option>TRAFFIC</option><option>EMERGENCY</option></select><textarea id="mi" class="input" rows="4" placeholder="Describe the problem"></textarea><div class="actions"><button class="btn" onclick="reportMaintenance()">REPORT PROBLEM</button><button class="btn danger" onclick="driverEmergency()">🚨 EMERGENCY</button></div></section></div>`;loadDriverDashboard()}
+async function loadDriverDashboard(){try{const j=await api('/api/driver/me');if(!j.bus){$('#gps').textContent='No bus is assigned to this driver.';return}window.driverData=j;const b=j.bus,t=j.trip;$('#driverSummary').innerHTML=[['Bus',b.number],['Speed',b.speed+' km/h'],['GPS',b.gps_status],['Trip',t?'ACTIVE':'NOT STARTED']].map(x=>`<div class="stat"><span class="muted">${x[0]}</span><br><b>${esc(x[1])}</b></div>`).join('');$('#driverBusInfo').innerHTML=`<b>${esc(b.number)}</b><br>${esc(b.route)}<br>Next stop: <b>${esc(b.next_stop)}</b><br>Latitude: ${b.lat.toFixed(6)}<br>Longitude: ${b.lon.toFixed(6)}<br>Accuracy: ${b.accuracy?('±'+Number(b.accuracy).toFixed(0)+' m'):'—'}<br>Last update: ${esc(b.last_update)}`;$('#driverStops').innerHTML='<b>Stops</b><br>'+j.stops.map(s=>`<span class="pill" style="display:inline-block;margin:3px">${esc(s.name)}</span>`).join('');}catch(e){toast(e.message)}}
+async function startDriverTrip(){try{await api('/api/driver/trips/start',{method:'POST',body:'{}'});toast('Trip started');loadDriverDashboard()}catch(e){toast(e.message)}}
+async function endDriverTrip(){try{await api('/api/driver/trips/end',{method:'POST',body:'{}'});toast('Trip ended');loadDriverDashboard()}catch(e){toast(e.message)}}
+async function driverEmergency(){const issue=$('#mi').value.trim()||'Driver emergency';try{await api('/api/driver/problem',{method:'POST',body:JSON.stringify({type:'EMERGENCY',issue})});toast('Emergency sent to admin');}catch(e){toast(e.message)}}
+
+async function reportMaintenance(){const issue=$('#mi').value.trim();if(!issue)return toast('Describe the issue');try{await api('/api/driver/problem',{method:'POST',body:JSON.stringify({issue,type:$('#problemType')?.value||'BREAKDOWN'})});$('#mi').value='';toast('Maintenance report sent')}catch(e){toast(e.message)}}
+function startGPS(){if(!navigator.geolocation)return toast('GPS unavailable');if(gpsWatch)return toast('GPS already running');gpsWatch=navigator.geolocation.watchPosition(async p=>{const speed=(p.coords.speed||0)*3.6,heading=p.coords.heading||0;try{await api('/api/gps',{method:'POST',body:JSON.stringify({lat:p.coords.latitude,lon:p.coords.longitude,speed,heading,accuracy:p.coords.accuracy})});$('#gps').innerHTML='<b>GPS LIVE</b><br>'+p.coords.latitude.toFixed(6)+', '+p.coords.longitude.toFixed(6)+'<br>'+speed.toFixed(1)+' km/h • accuracy ±'+p.coords.accuracy.toFixed(0)+'m'}catch(e){toast(e.message)}},e=>$('#gps').textContent='GPS OFFLINE • '+e.message,{enableHighAccuracy:true,maximumAge:1500,timeout:10000});toast('Phone GPS started')}
+async function stopGPS(){if(gpsWatch){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}try{await api('/api/gps/stop',{method:'POST'})}catch(e){}toast('GPS stopped')}
+async function adminPage(){currentView='admin';try{const [j,o]=await Promise.all([api('/api/admin'),api('/api/admin/overview')]);const active=j.emergencies.filter(x=>x.status!=='RESOLVED').length;$('#main').innerHTML=`<div class="hero"><div class="row"><div><h1>🛠️ Admin Dashboard</h1><div class="muted">Full fleet, driver, route, trip, emergency and user control.</div></div><button class="btn" onclick="goBack()">← Back</button></div><div class="stats"><div class="stat">Active Buses<br><b>${o.active_buses}</b></div><div class="stat">Live GPS<br><b>${o.live_buses}</b></div><div class="stat">Active Drivers<br><b>${o.drivers}</b></div><div class="stat">Active Trips<br><b>${o.active_trips}</b></div><div class="stat">Offline Buses<br><b>${Math.max(0,j.fleet.length-o.live_buses)}</b></div><div class="stat">Emergency Alerts<br><b>${o.emergency_alerts}</b></div><div class="stat">Complaints<br><b>${o.complaints}</b></div><div class="stat">Maintenance<br><b>${o.maintenance}</b></div></div></div><section class="panel pad"><h2>Live Fleet</h2>${j.fleet.map(b=>`<div class="route"><div class="row"><b>${esc(b.number)}</b><span class="pill ${b.live?'live':'demo'}">${esc(b.gps_status)}</span></div><div>${esc(b.route)} • ${b.speed} km/h • Next: ${esc(b.next_stop)} • ${esc(b.last_update)}</div><div class="actions" style="margin-top:7px"><button class="btn" onclick="selectBus(${b.id});openView('fleet')">VIEW MAP</button><button class="btn" onclick="adminToggleBus(${b.id},${b.enabled?0:1})">${b.enabled?'DISABLE':'ENABLE'}</button></div></div>`).join('')}</section><br><div class="grid"><section class="panel pad"><h2>👨‍✈️ Drivers & Assignments</h2><div class="route"><h3>Create Driver</h3><input id="newDriverName" class="input" placeholder="Driver name"><input id="newDriverEmail" class="input" placeholder="Driver email"><input id="newDriverPass" class="input" type="password" placeholder="Temporary password"><button class="btn" onclick="createDriver()">CREATE DRIVER</button></div><div class="route"><h3>Create Bus</h3><input id="newBusNumber" class="input" placeholder="Bus number"><input id="newBusCapacity" class="input" type="number" value="45"><select id="newBusRoute" class="input">${j.routes.map(r=>`<option value="${r.id}">${esc(r.code)}</option>`).join('')}</select><button class="btn" onclick="createBus()">CREATE BUS</button></div><div class="route"><select id="ad" class="input">${j.drivers.map(d=>`<option value="${d.id}">${esc(d.name)} (${esc(d.uid)})</option>`).join('')}</select><select id="ab" class="input">${j.fleet.map(b=>`<option value="${b.id}">${esc(b.number)}</option>`).join('')}</select><select id="ar" class="input">${j.routes.map(r=>`<option value="${r.id}">${esc(r.code)} — ${esc(r.name)}</option>`).join('')}</select><button class="btn primary" onclick="assignDriver()">ASSIGN DRIVER → BUS → ROUTE</button></div>${j.assignments.map(a=>`<div class="route"><b>${esc(a.driver_name)}</b> → <b>${esc(a.bus_number)}</b><br>${esc(a.route_name||'Route')}</div>`).join('')}</section><section class="panel pad"><h2>🛣️ Routes & Stops</h2><div class="route"><input id="newRouteCode" class="input" placeholder="New route code"><input id="newRouteName" class="input" placeholder="New route name"><button class="btn" onclick="createRoute()">ADD ROUTE</button></div><div class="route"><select id="newStopRoute" class="input">${j.routes.map(r=>`<option value="${r.id}">${esc(r.code)}</option>`).join('')}</select><input id="newStopName" class="input" placeholder="Stop name"><input id="newStopOrder" class="input" type="number" value="0" placeholder="Order"><button class="btn" onclick="createStop()">ADD STOP</button></div>${j.routes.map(r=>`<div class="route"><b>${esc(r.code)}</b> • ${esc(r.name)}<br>${j.stops.filter(s=>s.route_id===r.id).map(s=>esc(s.name)).join(' → ')}</div>`).join('')}</section></div><br><div class="grid"><section class="panel pad"><h2>🚨 Emergency Alerts</h2>${j.emergencies.length?j.emergencies.map(e=>`<div class="notice"><div class="row"><b>${esc(e.bus_number||'Bus')} • ${esc(e.user_name||'User')}</b><span class="pill">${esc(e.status)}</span></div>${esc(e.message)}<br><span class="small">${esc(e.created_at)}</span>${e.status!=='RESOLVED'?`<br><button class="btn" onclick="updateEmergency(${e.id},'ACKNOWLEDGED')">ACK</button> <button class="btn" onclick="updateEmergency(${e.id},'RESOLVED')">RESOLVE</button>`:''}</div>`).join(''):'<div class="muted">No emergency alerts.</div>'}</section><section class="panel pad"><h2>📝 Complaints</h2>${j.complaints.length?j.complaints.map(x=>`<div class="route"><div class="row"><b>#${x.id} ${esc(x.subject)}</b><span class="pill">${esc(x.status)}</span></div>${esc(x.message)}<br><span class="small muted">${esc(x.user_name||'User')} • ${esc(x.bus_number||'No bus')}</span>${x.status!=='RESOLVED'?`<br><button class="btn" onclick="updateComplaint(${x.id},'IN_PROGRESS')">IN PROGRESS</button> <button class="btn" onclick="updateComplaint(${x.id},'RESOLVED')">RESOLVE</button>`:''}</div>`).join(''):'<div class="muted">No complaints.</div>'}</section></div><br><div class="grid"><section class="panel pad"><h2>🔧 Maintenance</h2>${j.maintenance.length?j.maintenance.map(x=>`<div class="route"><b>${esc(x.bus_number||'Bus')}</b> • <span class="pill">${esc(x.status)}</span><br>${esc(x.issue)}<br><span class="small muted">${esc(x.created_at)}</span></div>`).join(''):'<div class="muted">No maintenance reports.</div>'}</section><section class="panel pad"><h2>🚌 Boarding History</h2>${j.attendance.length?j.attendance.slice(0,30).map(x=>`<div class="route"><b>${esc(x.user_name||x.uid||'Student')}</b> • ${esc(x.bus_number||'Bus')} • ${esc(x.stop_name||'Stop')}<br><span class="small muted">${esc(x.boarded_at)}</span></div>`).join(''):'<div class="muted">No boarding records.</div>'}</section></div>`}catch(e){toast(e.message)}}
+async function createDriver(){try{const j=await api('/api/admin/users',{method:'POST',body:JSON.stringify({name:$('#newDriverName').value,email:$('#newDriverEmail').value,password:$('#newDriverPass').value,role:'driver'})});toast('Driver created: '+j.uid);adminPage()}catch(e){toast(e.message)}}
+async function createBus(){try{await api('/api/admin/buses',{method:'POST',body:JSON.stringify({number:$('#newBusNumber').value,capacity:Number($('#newBusCapacity').value),route_id:Number($('#newBusRoute').value)})});toast('Bus created');adminPage()}catch(e){toast(e.message)}}
+async function createRoute(){try{await api('/api/admin/routes',{method:'POST',body:JSON.stringify({code:$('#newRouteCode').value,name:$('#newRouteName').value})});toast('Route created');adminPage()}catch(e){toast(e.message)}}
+async function createStop(){try{await api('/api/admin/stops',{method:'POST',body:JSON.stringify({route_id:Number($('#newStopRoute').value),name:$('#newStopName').value,stop_order:Number($('#newStopOrder').value)})});toast('Stop created');adminPage()}catch(e){toast(e.message)}}
+async function assignDriver(){try{await api('/api/admin/assignments',{method:'POST',body:JSON.stringify({driver_id:Number($('#ad').value),bus_id:Number($('#ab').value),route_id:Number($('#ar').value)})});toast('Assignment saved');adminPage()}catch(e){toast(e.message)}}
+async function adminToggleBus(id,enabled){try{await api('/api/admin/buses/'+id,{method:'PATCH',body:JSON.stringify({enabled:!!enabled})});toast(enabled?'Bus enabled':'Bus disabled');adminPage()}catch(e){toast(e.message)}}
+
+async function updateEmergency(id,status){try{await api('/api/emergencies/'+id,{method:'PATCH',body:JSON.stringify({status})});toast('Emergency updated');adminPage()}catch(e){toast(e.message)}}
+async function updateComplaint(id,status){try{await api('/api/complaints/'+id,{method:'PATCH',body:JSON.stringify({status})});toast('Complaint updated');adminPage()}catch(e){toast(e.message)}}
+async function sendEmergency(id){const message=prompt('Emergency message','Please send assistance to this bus.');if(!message)return;try{await api('/api/emergency',{method:'POST',body:JSON.stringify({bus_id:id,message})});toast('Emergency sent to control center')}catch(e){toast(e.message)}}
+async function addFavorite(id){try{await api('/api/favorites',{method:'POST',body:JSON.stringify({bus_id:id})});toast('Bus added to favorites')}catch(e){toast(e.message)}}
+async function board(id,stop){try{const j=await api('/api/attendance',{method:'POST',body:JSON.stringify({bus_id:id,stop_name:stop||'JOY UNIVERSITY'})});toast('Boarding recorded: '+j.token)}catch(e){toast(e.message)}}
+boot();
+</script>
+</body></html>
