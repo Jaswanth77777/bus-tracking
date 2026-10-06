@@ -71,6 +71,25 @@ Browsers normally require HTTPS for production geolocation. `localhost` is allow
 
 If Flask-SocketIO is available, GPS/trip/emergency events are emitted to connected clients. The existing browser polling loop remains enabled as a reliable fallback, so a WebSocket connection is not required for map updates.
 
+## Vercel deployment
+
+This repository is Vercel-ready as a Flask application. Vercel now supports Flask directly, so no `/api` wrapper is required. The repository includes `vercel.json` and pins the Python runtime to 3.12.
+
+1. Push/keep the repository on GitHub.
+2. In Vercel, import `Jaswanth77777/bus-tracking` and keep the project root at the repository root.
+3. Add these Environment Variables in Vercel:
+   - `JOY_BUS_SECRET` — a long random secret (required for stable sessions).
+   - `SESSION_COOKIE_SECURE=1`
+   - `SESSION_COOKIE_SAMESITE=Lax`
+   - `GPS_TIMEOUT_SECONDS=90` (optional).
+4. Deploy. Vercel will install `requirements.txt` and serve `app.py` as the Flask application.
+
+### Important: SQLite on Vercel
+
+Vercel deployments use an immutable filesystem. When `VERCEL=1`, this app therefore uses `/tmp/joy_bus_tracker.db` so the application can start and operate as a demo. **SQLite data in `/tmp` is not durable and can disappear when the serverless instance is recycled; it is not suitable for production fleet data.** For persistent users, buses, GPS history, complaints and attendance, migrate the database to PostgreSQL or another managed database and set the application to use that database.
+
+The driver's browser GPS also requires the deployed site to use HTTPS, which Vercel provides automatically.
+
 ## Production / Gunicorn
 
 For a simple WSGI deployment:
