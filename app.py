@@ -10,7 +10,16 @@ except Exception:
     SocketIO = None
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(BASE, 'joy_bus_tracker.db')
+# Vercel deployments run from an immutable filesystem. Keep the SQLite file in
+# /tmp there so the app can boot and handle demo/session data without trying
+# to write into the deployment bundle. For persistent production data, set
+# JOY_BUS_DB to a managed database-backed path/service instead of relying on SQLite.
+if os.environ.get('JOY_BUS_DB'):
+    DB = os.environ['JOY_BUS_DB']
+elif os.environ.get('VERCEL'):
+    DB = '/tmp/joy_bus_tracker.db'
+else:
+    DB = os.path.join(BASE, 'joy_bus_tracker.db')
 app = Flask(__name__)
 app.secret_key = os.environ.get('JOY_BUS_SECRET') or secrets.token_hex(32)
 app.config.update(
