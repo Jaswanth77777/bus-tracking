@@ -203,7 +203,9 @@ function initMap(){
       crossOrigin:true
     });
     osm.addTo(mapState.map);
-    L.control.layers({'OpenStreetMap street map':osm},null,{collapsed:true,position:'topright'}).addTo(mapState.map);
+    const street=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}); 
+    const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'});
+    L.control.layers({'OpenStreetMap':osm,'Detailed street map':street,'Satellite view':satellite},null,{collapsed:true,position:'topright'}).addTo(mapState.map);
     L.control.scale({metric:true,imperial:false,position:'bottomleft'}).addTo(mapState.map);
     let tileErrorShown=false;
     osm.on('tileerror',()=>{if(!tileErrorShown){tileErrorShown=true;toast('Map tiles could not load. Check your internet connection and refresh the map.')}});
@@ -402,13 +404,13 @@ function startMapAnimation(){
 }
 function mapClick(e){if(mapState.map)return}
 function mapZoom(dir){if(mapState.map){dir>0?mapState.map.zoomIn():mapState.map.zoomOut()}else fallbackZoom(dir)}
-function mapFollowSelected(){const b=buses.find(x=>x.id===selected);if(!b){toast('Select a bus first');return}paused=false;follow=true;const p=$('#pauseText');if(p)p.textContent='⏸ PAUSE';loadRoadRoute(b);if(mapState.map){mapState.map.setView(markerVisualPosition(b),17,{animate:true});startSelectedBusMovement(b)}toast('Following '+b.number)}
+function mapFollowSelected(){const b=buses.find(x=>x.id===selected);if(!b){toast('Select a bus first');return}paused=false;follow=true;const p=$('#pauseText');if(p)p.textContent='⏸ PAUSE';if(mapState.map){mapState.map.setView(markerVisualPosition(b),15,{animate:true});startSelectedBusMovement(b)}loadRoadRoute(b).then(()=>{if(mapState.map&&Number(selected)===Number(b.id)){const rr=roadRoutes[b.id];if(rr&&rr.coords&&rr.coords.length>1)mapState.map.fitBounds(L.latLngBounds(rr.coords),{padding:[55,55],maxZoom:15,animate:true});}});toast('Following '+b.number+' • route overview')}
 function mapFitFleet(){follow=false;if(mapState.map){const pts=buses.map(markerVisualPosition);if(pts.length)mapState.map.fitBounds(L.latLngBounds(pts),{padding:[55,55],maxZoom:15});toast('Showing all '+pts.length+' buses')}else fallbackFitFleet()}
 function mapCampus(){follow=false;if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],16,{animate:true});toast('JOY University campus')}else fallbackCampus()}
 function mapReset(){if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],14,{animate:true});follow=appSettings.follow;toast('Map reset')}else fallbackCampus()}
 function centerNextStop(){const b=buses.find(x=>x.id===selected);if(!b)return;const rr=roadRoutes[b.id];if(mapState.map&&rr&&rr.stopCoords.length){const idx=Math.max(0,b.stops.indexOf(b.next_stop)),p=rr.stopCoords[Math.min(idx,rr.stopCoords.length-1)];mapState.map.setView(p,17,{animate:true});toast('Next stop: '+b.next_stop)}else{loadRoadRoute(b);toast('Loading road route for '+b.number)}}
 async function mapFullscreen(){const el=$('#mapShell');if(!el)return;try{if(!document.fullscreenElement)await el.requestFullscreen();else await document.exitFullscreen();setTimeout(()=>mapState.map&&mapState.map.invalidateSize(),200)}catch(e){toast('Fullscreen not available')}}
-function focusMapOnBus(b){if(!b)return;if(mapState.map){mapState.map.setView(getBusLatLng(b),17,{animate:true});loadRoadRoute(b)}else{toast('Map fallback mode')}}
+function focusMapOnBus(b){if(!b)return;if(mapState.map){mapState.map.setView(getBusLatLng(b),15,{animate:true});loadRoadRoute(b).then(()=>{if(mapState.map&&Number(selected)===Number(b.id)){const rr=roadRoutes[b.id];if(rr&&rr.coords&&rr.coords.length>1)mapState.map.fitBounds(L.latLngBounds(rr.coords),{padding:[55,55],maxZoom:15,animate:true});}})}else{toast('Map fallback mode')}}
 function selectBus(id){
   selected=Number(id);
   const b=buses.find(x=>Number(x.id)===selected);
