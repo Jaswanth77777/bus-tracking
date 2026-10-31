@@ -77,13 +77,6 @@ CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY AUTOINCREMENT,us
 CREATE TABLE IF NOT EXISTS boarding_history(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL REFERENCES users(id),bus_id INTEGER NOT NULL REFERENCES buses(id),stop_id INTEGER REFERENCES stops(id),stop_name TEXT,boarded_at TEXT NOT NULL,qr_token TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER,bus_id INTEGER,stop_name TEXT,boarded_at TEXT,qr_token TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS favorites(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,bus_id INTEGER REFERENCES buses(id) ON DELETE CASCADE,route_id INTEGER REFERENCES routes(id) ON DELETE CASCADE,created_at TEXT NOT NULL,UNIQUE(user_id,bus_id,route_id));
-CREATE INDEX IF NOT EXISTS idx_gps_bus_time ON gps_locations(bus_id,recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_gps_driver_time ON gps_locations(driver_id,recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_trips_bus_status ON trips(bus_id,status);
-CREATE INDEX IF NOT EXISTS idx_assign_driver_active ON driver_bus_assignments(driver_id,active);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_time ON notifications(user_id,created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_emergency_status ON emergency_alerts(status,created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status,created_at DESC);
 '''
 
 
@@ -182,6 +175,22 @@ def init_db():
     for table, col, definition in [
         ('users','active','INTEGER DEFAULT 1'),('users','updated_at','TEXT'),('buses','route_id','INTEGER'),('buses','enabled','INTEGER DEFAULT 1'),('buses','created_at','TEXT'),('buses','updated_at','TEXT')]:
         ensure_column(c,table,col,definition)
+    # Build performance indexes only after legacy tables have been upgraded.
+    # Older SQLite files may have tables without these columns; never let an
+    # optional index prevent the Flask app from starting.
+    for statement in [
+        "CREATE INDEX IF NOT EXISTS idx_gps_bus_time ON gps_locations(bus_id,recorded_at DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_gps_driver_time ON gps_locations(driver_id,recorded_at DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_trips_bus_status ON trips(bus_id,status);",
+        "CREATE INDEX IF NOT EXISTS idx_assign_driver_active ON driver_bus_assignments(driver_id,active);",
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user_time ON notifications(user_id,created_at DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_emergency_status ON emergency_alerts(status,created_at DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status,created_at DESC);",
+    ]:
+        try:
+            c.execute(statement)
+        except sqlite3.OperationalError:
+            app.logger.exception("Skipping incompatible legacy database index: %s", statement)
     c.execute("UPDATE buses SET status='RUNNING' WHERE status IS NULL OR status=''")
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
