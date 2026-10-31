@@ -673,7 +673,7 @@ def admin_system():
 def admin_data():
     c=db()
     fleet=[bus_payload(r) for r in c.execute('SELECT * FROM buses ORDER BY id').fetchall()]
-    users=[dict(r) for r in c.execute('SELECT id,name,email,role,uid,phone FROM users ORDER BY id').fetchall()]
+    users=[dict(r) for r in c.execute('SELECT id,name,email,role,uid,phone,active FROM users ORDER BY id').fetchall()]
     emergencies=[dict(r) for r in c.execute('SELECT e.*,u.name user_name,b.number bus_number FROM emergencies e LEFT JOIN users u ON u.id=e.user_id LEFT JOIN buses b ON b.id=e.bus_id ORDER BY e.id DESC LIMIT 50').fetchall()]
     complaints=[dict(r) for r in c.execute('SELECT c.*,u.name user_name,b.number bus_number FROM complaints c LEFT JOIN users u ON u.id=c.user_id LEFT JOIN buses b ON b.id=c.bus_id ORDER BY c.id DESC LIMIT 50').fetchall()]
     maintenance=[dict(r) for r in c.execute('SELECT m.*,b.number bus_number FROM maintenance m LEFT JOIN buses b ON b.id=m.bus_id ORDER BY m.id DESC LIMIT 50').fetchall()]
