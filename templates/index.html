@@ -226,30 +226,32 @@ function startSelectedBusMovement(b){
     coords,index:idx,from:[pos[0],pos[1]],to:coords[Math.min(idx+1,coords.length-1)],
     t:0,current:[pos[0],pos[1]],active:true
   };
-  Object.keys(busMotion).forEach(k=>{if(Number(k)!==Number(b.id))busMotion[k].active=false});
   if($('#mapStatus'))$('#mapStatus').textContent='Moving '+b.number+' • selected bus';
 }
 function updateSelectedBusMovement(dt){
-  const b=buses.find(x=>Number(x.id)===Number(selected));
-  if(!b||paused)return;
-  let m=busMotion[b.id];
-  if(!m||!m.active){startSelectedBusMovement(b);m=busMotion[b.id];}
-  // Move a visible distance every animation frame. The speed is intentionally
-  // demo-friendly so the user can clearly see the marker traveling.
-  const segmentSeconds=1.8;
-  m.t+=dt/segmentSeconds;
-  while(m.t>=1){
-    m.t-=1;m.index++;
-    if(m.index>=m.coords.length-1)m.index=0;
-    m.from=m.coords[m.index];m.to=m.coords[m.index+1];
-  }
-  const e=m.t*m.t*(3-2*m.t);
-  m.current=[m.from[0]+(m.to[0]-m.from[0])*e,m.from[1]+(m.to[1]-m.from[1])*e];
-  const marker=mapState.markers[b.id];
-  if(marker)marker.setLatLng(m.current);
-  if(follow&&mapState.map)mapState.map.panTo(m.current,{animate:false});
+  if(paused)return;
+  buses.forEach(b=>{
+    if(b.live){
+      const liveMarker=mapState.markers[b.id];
+      if(liveMarker)liveMarker.setLatLng([b.lat,b.lon]);
+      if(follow&&b.id===selected&&mapState.map)mapState.map.panTo([b.lat,b.lon],{animate:false});
+      return;
+    }
+    let m=busMotion[b.id];
+    if(!m||!m.active)startSelectedBusMovement(b);
+    m=busMotion[b.id];
+    const segmentSeconds=1.8;
+    m.t+=dt/segmentSeconds;
+    while(m.t>=1){m.t-=1;m.index++;if(m.index>=m.coords.length-1)m.index=0;m.from=m.coords[m.index];m.to=m.coords[m.index+1]}
+    const e=m.t*m.t*(3-2*m.t);
+    m.current=[m.from[0]+(m.to[0]-m.from[0])*e,m.from[1]+(m.to[1]-m.from[1])*e];
+    const marker=mapState.markers[b.id];
+    if(marker)marker.setLatLng(m.current);
+    if(follow&&b.id===selected&&mapState.map)mapState.map.panTo(m.current,{animate:false});
+  });
   if(!mapState.map&&mapState.canvas)drawFallbackMap();
-  if($('#mapStatus'))$('#mapStatus').textContent='🟢 '+b.number+' is moving on the route';
+  const selectedBus=buses.find(x=>x.id===selected);
+  if($('#mapStatus')&&selectedBus)$('#mapStatus').textContent=(selectedBus.live?'LIVE GPS • ':'DEMO MOVEMENT • ')+selectedBus.number;
 }
 function updateLeafletMap(){
   if(!mapState.map)return;
