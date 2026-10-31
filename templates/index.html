@@ -158,7 +158,7 @@ body{background:radial-gradient(ellipse at 12% 0,#eee7fa 0,transparent 42%),#f7f
 <body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
 <script>
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let me=null,buses=[],selected=null,gpsWatch=null,currentView='fleet',viewStack=[],paused=false,lastStop=null,notifyStops=true,filterMode='all',visualStates={},liveLoopRunning=false,roadRoutes={},roadLoading={},mapState={map:null,markers:{},routeLine:null,stopLayer:null,ready:false,fallback:false};
+let me=null,buses=[],selected=null,gpsWatch=null,currentView='fleet',viewStack=[],paused=false,lastStop=null,notifyStops=true,filterMode='all',visualStates={},liveLoopRunning=false,roadRoutes={},roadLoading={},mapViewMode='all',mapState={map:null,markers:{},routeLine:null,stopLayer:null,ready:false,fallback:false};
 const defaultSettings={follow:true,notifyStops:true,showLabels:true,autoRefresh:true,compactMap:false,reduceMotion:false};
 let appSettings={...defaultSettings,...JSON.parse(localStorage.getItem('joySettings')||'{}')};let follow=appSettings.follow;
 function saveSettings(){localStorage.setItem('joySettings',JSON.stringify(appSettings));follow=appSettings.follow;notifyStops=appSettings.notifyStops}
@@ -380,6 +380,16 @@ function updateSelectedBusMovement(dt){
   const selectedBus=buses.find(x=>x.id===selected);
   if($('#mapStatus')&&selectedBus)$('#mapStatus').textContent=(selectedBus.live?'LIVE GPS • ':'DEMO MOVEMENT • ')+selectedBus.number;
 }
+function applyBusMapVisibility(){
+  if(!mapState.map)return;
+  buses.forEach(b=>{
+    const marker=mapState.markers[b.id];
+    if(!marker)return;
+    const show=mapViewMode==='all'||Number(b.id)===Number(selected);
+    if(show){if(!mapState.map.hasLayer(marker))marker.addTo(mapState.map)}
+    else if(mapState.map.hasLayer(marker))mapState.map.removeLayer(marker);
+  });
+}
 function updateLeafletMap(){
   if(!mapState.map)return;
   buses.forEach(ensureBusMarker);
@@ -389,6 +399,7 @@ function updateLeafletMap(){
     }
   });
   // Marker coordinates are updated only by updateSelectedBusMovement().
+  applyBusMapVisibility();
 }
 function startMapAnimation(){
   if(window.__joyMapAnim)return;
@@ -405,7 +416,7 @@ function startMapAnimation(){
 function mapClick(e){if(mapState.map)return}
 function mapZoom(dir){if(mapState.map){dir>0?mapState.map.zoomIn():mapState.map.zoomOut()}else fallbackZoom(dir)}
 function mapFollowSelected(){const b=buses.find(x=>x.id===selected);if(!b){toast('Select a bus first');return}paused=false;follow=true;const p=$('#pauseText');if(p)p.textContent='⏸ PAUSE';if(mapState.map){mapState.map.setView(markerVisualPosition(b),15,{animate:true});startSelectedBusMovement(b)}loadRoadRoute(b).then(()=>{if(mapState.map&&Number(selected)===Number(b.id)){const rr=roadRoutes[b.id];if(rr&&rr.coords&&rr.coords.length>1)mapState.map.fitBounds(L.latLngBounds(rr.coords),{padding:[55,55],maxZoom:15,animate:true});}});toast('Following '+b.number+' • route overview')}
-function mapFitFleet(){follow=false;buses.forEach(b=>{if(!busMotion[b.id]&&!b.live)startSelectedBusMovement(b)});if(mapState.map){const pts=buses.map(markerVisualPosition);if(pts.length)mapState.map.fitBounds(L.latLngBounds(pts),{padding:[55,55],maxZoom:15});toast('ALL BUSES mode • '+pts.length+' buses updating together')}else fallbackFitFleet()}
+function mapFitFleet(){mapViewMode='all';follow=false;buses.forEach(b=>{if(!busMotion[b.id]&&!b.live)startSelectedBusMovement(b)});if(mapState.map){applyBusMapVisibility();const pts=buses.map(markerVisualPosition);if(pts.length)mapState.map.fitBounds(L.latLngBounds(pts),{padding:[55,55],maxZoom:15});toast('ALL BUSES mode • '+pts.length+' buses updating together')}else fallbackFitFleet()}
 function mapCampus(){follow=false;if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],16,{animate:true});toast('JOY University campus')}else fallbackCampus()}
 function mapReset(){if(mapState.map){mapState.map.setView([CAMPUS_LAT,CAMPUS_LON],14,{animate:true});follow=appSettings.follow;toast('Map reset')}else fallbackCampus()}
 function centerNextStop(){const b=buses.find(x=>x.id===selected);if(!b)return;const rr=roadRoutes[b.id];if(mapState.map&&rr&&rr.stopCoords.length){const idx=Math.max(0,b.stops.indexOf(b.next_stop)),p=rr.stopCoords[Math.min(idx,rr.stopCoords.length-1)];mapState.map.setView(p,17,{animate:true});toast('Next stop: '+b.next_stop)}else{loadRoadRoute(b);toast('Loading road route for '+b.number)}}
@@ -413,13 +424,15 @@ async function mapFullscreen(){const el=$('#mapShell');if(!el)return;try{if(!doc
 function focusMapOnBus(b){if(!b)return;if(mapState.map){mapState.map.setView(getBusLatLng(b),15,{animate:true});loadRoadRoute(b).then(()=>{if(mapState.map&&Number(selected)===Number(b.id)){const rr=roadRoutes[b.id];if(rr&&rr.coords&&rr.coords.length>1)mapState.map.fitBounds(L.latLngBounds(rr.coords),{padding:[55,55],maxZoom:15,animate:true});}})}else{toast('Map fallback mode')}}
 function selectBus(id){
   selected=Number(id);
+  mapViewMode='selected';
   const b=buses.find(x=>Number(x.id)===selected);
   if(!b)return;
   renderList(); showDetail(b);
   loadRoadRoute(b);
   if(follow)focusMapOnBus(b);
-  if(mapState.map)renderSelectedRoadRoute(b); else drawFallbackMap();
+  if(mapState.map){renderSelectedRoadRoute(b);applyBusMapVisibility();} else drawFallbackMap();
   startSelectedBusMovement(b);
+  if(mapState.map){loadRoadRoute(b).then(()=>{if(mapViewMode==='selected'&&Number(selected)===Number(b.id)){applyBusMapVisibility();const rr=roadRoutes[b.id];if(rr&&rr.coords&&rr.coords.length>1)mapState.map.fitBounds(L.latLngBounds(rr.coords),{padding:[55,55],maxZoom:15,animate:true});}});}
 }
 // Offline fallback: keep a usable campus map if Leaflet/OSM cannot load.
 function fallbackResize(){const c=mapState.canvas,h=$('#liveMap');const d=devicePixelRatio||1;c.width=h.clientWidth*d;c.height=h.clientHeight*d;c.style.width=h.clientWidth+'px';c.style.height=h.clientHeight+'px';mapState.ctx.setTransform(d,0,0,d,0,0);drawFallbackMap()}
