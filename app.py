@@ -310,6 +310,38 @@ def health():
 @app.get('/api/me')
 def api_me(): return jsonify(ok=True,user=current_user(),campus=CAMPUS)
 
+@app.get('/api/profile')
+@auth()
+def profile_get():
+    u=current_user(); c=db(); profile=dict(u)
+    if u['role']=='student':
+        row=c.execute('SELECT student_no,department,year FROM students WHERE user_id=?',(u['id'],)).fetchone()
+        if row: profile.update(dict(row))
+    elif u['role']=='driver':
+        row=c.execute('SELECT license_no,phone driver_phone FROM drivers WHERE user_id=?',(u['id'],)).fetchone()
+        if row: profile.update(dict(row))
+    c.close()
+    return jsonify(ok=True,profile=profile,campus=CAMPUS)
+
+@app.patch('/api/profile')
+@auth()
+def profile_update():
+    u=current_user(); d=request.get_json() or {}
+    name=str(d.get('name',u['name'])).strip(); phone=str(d.get('phone',u.get('phone') or '')).strip()
+    if not name or len(name)>100: return jsonify(ok=False,error='Enter a valid name (max 100 characters)'),400
+    if len(phone)>25: return jsonify(ok=False,error='Phone number is too long'),400
+    c=db(); c.execute('UPDATE users SET name=?,phone=?,updated_at=? WHERE id=?',(name,phone,now(),u['id']))
+    if u['role']=='student':
+        student_no=str(d.get('student_no','')).strip()[:40]; department=str(d.get('department','')).strip()[:80]; year=str(d.get('year','')).strip()[:30]
+        c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(u['id'],now()))
+        c.execute('UPDATE students SET student_no=?,department=?,year=? WHERE user_id=?',(student_no,department,year,u['id']))
+    elif u['role']=='driver':
+        license_no=str(d.get('license_no','')).strip()[:50]
+        c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(u['id'],now()))
+        c.execute('UPDATE drivers SET license_no=?,phone=? WHERE user_id=?',(license_no,phone,u['id']))
+    c.commit(); c.close()
+    return profile_get()
+
 @app.post('/api/login')
 def login():
     d=request.get_json() or {}; identity=d.get('identity','').strip().lower(); password=d.get('password',''); c=db(); r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone(); c.close()
