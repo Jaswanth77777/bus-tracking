@@ -1,8 +1,10 @@
 import os, sqlite3, time, math, secrets, re
+from io import BytesIO
 from datetime import datetime, timezone
 from functools import wraps
-from flask import Flask, request, jsonify, session, render_template, g
+from flask import Flask, request, jsonify, session, render_template, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
+from openpyxl import Workbook, load_workbook
 
 try:
     from flask_socketio import SocketIO
@@ -601,6 +603,59 @@ def gps_history(bus_id):
         b=assigned_bus_for_driver(c,u['id']);
         if not b or b['id']!=bus_id:c.close();return jsonify(ok=False,error='Access denied'),403
     rows=c.execute('SELECT lat,lon,speed,heading,accuracy,recorded_at FROM gps_locations WHERE bus_id=? ORDER BY id DESC LIMIT 200',(bus_id,)).fetchall(); c.close(); return jsonify(ok=True,locations=[dict(x) for x in rows])
+
+@app.get('/api/admin/import-template')
+@auth(['admin'])
+def admin_import_template():
+    wb=Workbook()
+    ws=wb.active; ws.title='Students'
+    ws.append(['name','email','password','phone','student_no','department','year'])
+    ws.append(['Example Student','student@example.edu','ChangeMe123','9876543210','JOY2026001','Computer Science','1st Year'])
+    out=BytesIO(); wb.save(out); out.seek(0)
+    return send_file(out,as_attachment=True,download_name='joy_university_student_import_template.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.post('/api/admin/import-students')
+@auth(['admin'])
+def admin_import_students():
+    upload=request.files.get('file')
+    if not upload or not upload.filename.lower().endswith('.xlsx'):
+        return jsonify(ok=False,error='Upload an .xlsx Excel workbook'),400
+    try:
+        wb=load_workbook(BytesIO(upload.read()),read_only=True,data_only=True)
+        ws=wb['Students'] if 'Students' in wb.sheetnames else wb.active
+        rows=ws.iter_rows(values_only=True)
+        headers=[str(v or '').strip().lower().replace(' ','_') for v in next(rows,())]
+        if not {'name','email','password'}.issubset(set(headers)):
+            return jsonify(ok=False,error='Excel must include columns: name, email, password'),400
+        indexes={name:i for i,name in enumerate(headers)}
+        c=db(); created=0; skipped=0; errors=[]
+        try:
+            for row_no,row in enumerate(rows,start=2):
+                if not row or not any(v is not None and str(v).strip() for v in row): continue
+                def cell(key):
+                    i=indexes.get(key)
+                    return str(row[i]).strip() if i is not None and i<len(row) and row[i] is not None else ''
+                name,email,password=cell('name'),cell('email').lower(),cell('password')
+                if not name or '@' not in email or len(password)<8:
+                    errors.append({'row':row_no,'error':'Name, valid email and password (8+ characters) are required'}); continue
+                if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone():
+                    skipped+=1; continue
+                n=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
+                uid=f"JOY-ST-{datetime.now().year}-{n:04d}"
+                try:
+                    cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(name,email,generate_password_hash(password),'student',uid,cell('phone'),1,now(),now()))
+                    c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(cur.lastrowid,cell('student_no'),cell('department'),cell('year'),now()))
+                    created+=1
+                except sqlite3.IntegrityError:
+                    skipped+=1
+            c.commit()
+        except Exception:
+            c.rollback(); raise
+        finally:
+            c.close()
+        return jsonify(ok=True,created=created,skipped=skipped,errors=errors)
+    except Exception as e:
+        return jsonify(ok=False,error='Could not read Excel file: '+str(e)),400
 
 @app.post('/api/admin/users')
 @auth(['admin'])
