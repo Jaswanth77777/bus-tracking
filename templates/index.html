@@ -11,7 +11,7 @@ button,input,textarea{font:inherit}button{cursor:pointer}.top{height:auto;min-he
 .wrap{max-width:1560px;margin:auto;padding:18px}.hero,.panel{background:linear-gradient(180deg,#0b1e31f2,#071320f2);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 60px #0006}.hero{padding:18px;margin-bottom:14px}.panel{overflow:hidden}.pad{padding:15px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.actions{display:flex;gap:7px;flex-wrap:wrap}.muted{color:var(--muted)}.small{font-size:12px}
 .grid{display:grid;grid-template-columns:330px 1fr;gap:14px}.buslist{padding:12px;max-height:640px;overflow:auto}.bus{padding:12px;border:1px solid var(--line);border-radius:12px;background:#071421;margin-bottom:8px;cursor:pointer}.bus:hover,.bus.sel{border-color:var(--blue);box-shadow:0 0 0 1px #38bdf844 inset}.pill{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#19324a}.live{background:#063c31;color:#6ee7b7}.demo{background:#43330a;color:#fde68a}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.stat{padding:13px;border:1px solid var(--line);border-radius:13px;background:#071421}.stat b{font-size:23px}
-.map-shell{position:relative;height:650px;background:#dfe8e1}.map-host{position:absolute;inset:0}.leaflet-container{font-family:Inter,system-ui,Arial,sans-serif;background:#dce7dd}.leaflet-control-zoom a{background:#071421!important;color:#fff!important;border-color:#21425d!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#071421;color:#fff;border:1px solid #21425d}.leaflet-popup-content{margin:12px}.bus-marker{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0284c7;border:3px solid #fff;box-shadow:0 4px 16px #0007;font-size:20px}.bus-marker.selected{background:#16a34a;transform:scale(1.12)}.bus-label{position:absolute;left:45px;top:9px;white-space:nowrap;color:#062238;font-weight:900;font-size:12px;text-shadow:0 1px 0 #fff,0 -1px 0 #fff}.map-canvas{display:block;width:100%;height:100%;cursor:grab}.map-tools{position:absolute;right:12px;top:12px;z-index:10;display:flex;flex-direction:column;gap:6px}.map-tools .btn{min-width:42px;padding:8px;background:#071421ef}.map-legend{position:absolute;left:12px;bottom:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;font-size:12px;z-index:10}.map-title{position:absolute;left:12px;top:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;z-index:10}
+.map-shell{position:relative;height:650px;background:#dfe8e1}.map-host{position:absolute;inset:0}.leaflet-container{font-family:Inter,system-ui,Arial,sans-serif;background:#dce7dd}.leaflet-control-zoom a{background:#071421!important;color:#fff!important;border-color:#21425d!important}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#071421;color:#fff;border:1px solid #21425d}.leaflet-popup-content{margin:12px}.bus-marker{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0284c7;border:3px solid #fff;box-shadow:0 4px 16px #0007;font-size:20px;position:relative}.bus-marker:before{content:'';position:absolute;inset:-8px;border:2px solid #0284c7;border-radius:50%;opacity:.0}.bus-marker.selected{background:#16a34a;transform:scale(1.12);z-index:1000}.bus-marker.selected:before{border-color:#16a34a;animation:busPulse 1.8s ease-out infinite}.bus-marker.live:before{border-color:#16a34a;animation:busPulse 1.8s ease-out infinite}@keyframes busPulse{0%{transform:scale(.72);opacity:.85}100%{transform:scale(1.65);opacity:0}}.bus-label{position:absolute;left:45px;top:9px;white-space:nowrap;color:#062238;font-weight:900;font-size:12px;text-shadow:0 1px 0 #fff,0 -1px 0 #fff}.map-canvas{display:block;width:100%;height:100%;cursor:grab}.map-tools{position:absolute;right:12px;top:12px;z-index:10;display:flex;flex-direction:column;gap:6px}.map-tools .btn{min-width:42px;padding:8px;background:#071421ef}.map-legend{position:absolute;left:12px;bottom:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;font-size:12px;z-index:10}.map-title{position:absolute;left:12px;top:12px;background:#071421ee;border:1px solid var(--line);padding:9px 11px;border-radius:10px;z-index:10}
 .photo,.photo-caption{display:none}.campus-info{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{padding:12px;border:1px solid var(--line);border-radius:12px;background:#071421}
 .detail{margin-top:14px}.route{padding:11px;border:1px solid var(--line);border-radius:11px;background:#06111c;margin-top:9px}.notice{padding:11px;border:1px solid #155e75;border-radius:11px;background:#09283a;color:#bcecff;margin:9px 0}
 .input{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#04101b;color:white;margin:5px 0 9px}.auth{max-width:850px;margin:8vh auto;padding:18px}.toast{position:fixed;right:18px;bottom:18px;z-index:100;background:#0d2338;border:1px solid #2563eb;padding:13px 16px;border-radius:12px}.modal{position:fixed;inset:0;background:#000b;z-index:90;display:grid;place-items:center;padding:20px}.modalbox{width:min(650px,100%);background:#0a1b2c;border:1px solid var(--line);border-radius:18px;padding:20px;max-height:90vh;overflow:auto}
@@ -173,8 +173,17 @@ function renderSelectedRoadRoute(b){
   if(!mapState.map||!b)return;
   const rr=roadRoutes[b.id]||buildOfflineRoad(b); roadRoutes[b.id]=rr;
   if(mapState.routeLine){mapState.map.removeLayer(mapState.routeLine);mapState.routeLine=null}
-  mapState.routeLine=L.polyline(rr.coords,{color:'#2563eb',weight:6,opacity:.72}).addTo(mapState.map);
-  if(mapState.stopLayer){mapState.stopLayer.clearLayers();rr.stopCoords.forEach((p,i)=>L.circleMarker(p,{radius:6,weight:2,fillOpacity:.95,color:'#f59e0b',fillColor:'#fbbf24'}).bindTooltip(b.stops[i]||'Stop').addTo(mapState.stopLayer));}
+  if(mapState.routeCasing){mapState.map.removeLayer(mapState.routeCasing);mapState.routeCasing=null}
+  // Draw a road-following route with a white outline so it stays visible over real map tiles.
+  mapState.routeCasing=L.polyline(rr.coords,{color:'#ffffff',weight:10,opacity:.92,lineCap:'round',lineJoin:'round'}).addTo(mapState.map);
+  mapState.routeLine=L.polyline(rr.coords,{color:'#087fce',weight:5,opacity:.95,lineCap:'round',lineJoin:'round'}).addTo(mapState.map);
+  if(mapState.stopLayer){
+    mapState.stopLayer.clearLayers();
+    rr.stopCoords.forEach((p,i)=>{
+      const stopIcon=L.divIcon({className:'joy-stop-icon',html:'<span>'+(i+1)+'</span>',iconSize:[24,24],iconAnchor:[12,12]});
+      L.marker(p,{icon:stopIcon,title:b.stops[i]||('Stop '+(i+1))}).bindTooltip((i+1)+'. '+esc(b.stops[i]||'Bus stop')).addTo(mapState.stopLayer);
+    });
+  }
 }
 function drawMap(){
   if(mapState.map){updateLeafletMap();const b=buses.find(x=>Number(x.id)===Number(selected));if(b)renderSelectedRoadRoute(b);}
@@ -190,7 +199,7 @@ function ensureBusMarker(b){
   if(!mapState.map||!window.L)return;
   const pos=markerVisualPosition(b),sel=b.id===selected;
   let m=mapState.markers[b.id];
-  const html='<div class="bus-marker '+(sel?'selected':'')+'">🚌<span class="bus-label">'+esc(b.number)+'</span></div>';
+  const html='<div class="bus-marker '+(sel?'selected':'')+(b.live?' live':'')+'">🚌<span class="bus-label">'+esc(b.number)+'</span></div>';
   if(!m){
     m=L.marker(pos,{icon:L.divIcon({className:'',html,iconSize:[42,42],iconAnchor:[21,21]}),title:b.number}).addTo(mapState.map);
     m.on('click',()=>{selectBus(b.id);mapFollowSelected();});
@@ -266,7 +275,11 @@ function updateSelectedBusMovement(dt){
     let m=busMotion[b.id];
     if(!m||!m.active)startSelectedBusMovement(b);
     m=busMotion[b.id];
-    const segmentSeconds=1.8;
+    // Move at a believable demo road speed instead of jumping rapidly between route points.
+    const a=m.from,bp=m.to;
+    const metres=Math.hypot((bp[0]-a[0])*111000,(bp[1]-a[1])*111000*Math.cos(CAMPUS_LAT*Math.PI/180));
+    const demoSpeedMps=9.4; // about 34 km/h
+    const segmentSeconds=Math.max(.35,metres/demoSpeedMps);
     m.t+=dt/segmentSeconds;
     while(m.t>=1){m.t-=1;m.index++;if(m.index>=m.coords.length-1)m.index=0;m.from=m.coords[m.index];m.to=m.coords[m.index+1]}
     const e=m.t*m.t*(3-2*m.t);
