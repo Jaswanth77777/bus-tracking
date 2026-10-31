@@ -627,7 +627,7 @@ def admin_overview():
     active=c.execute("SELECT COUNT(*) n FROM buses WHERE enabled=1 AND status='RUNNING'").fetchone()['n']; live=c.execute('SELECT COUNT(*) n FROM buses WHERE enabled=1 AND last_gps IS NOT NULL AND last_gps>=?',(cutoff,)).fetchone()['n']; drivers=c.execute("SELECT COUNT(*) n FROM users WHERE role='driver' AND active=1").fetchone()['n']; trips=c.execute("SELECT COUNT(*) n FROM trips WHERE status='ACTIVE'").fetchone()['n']; emergencies=c.execute("SELECT COUNT(*) n FROM emergency_alerts WHERE status!='RESOLVED'").fetchone()['n']; complaints=c.execute("SELECT COUNT(*) n FROM complaints WHERE status NOT IN ('RESOLVED','REJECTED')").fetchone()['n']; maintenance=c.execute("SELECT COUNT(*) n FROM maintenance_reports WHERE status NOT IN ('RESOLVED','GOOD')").fetchone()['n']; c.close(); return jsonify(ok=True,active_buses=active,live_buses=live,drivers=drivers,active_trips=trips,emergency_alerts=emergencies,complaints=complaints,maintenance=maintenance,gps_timeout=GPS_TIMEOUT_SECONDS)
 
 @app.post('/api/admin/assignments')
-@auth(['admin'])
+@auth(['admin','transport_manager'])
 def admin_assign():
     d=request.get_json() or {}
     try: driver_id=int(d['driver_id']); bus_id=int(d['bus_id']); route_id=int(d['route_id']) if d.get('route_id') else None
