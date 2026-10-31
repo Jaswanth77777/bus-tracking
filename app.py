@@ -237,18 +237,41 @@ def demo_state(number):
     return x,z,h,t
 
 def bus_payload(row):
-    b=dict(row); number=b['number']; route,stops=ROUTES[number]
-    manual=bool(b['manual_until'] and b['manual_until']>time.time() and b['last_lat'] is not None)
-    stale_live=bool(b['last_gps'] and (time.time()-b['last_gps'])>GPS_TIMEOUT_SECONDS) and not bool(b['simulated'])
-    if stale_live: manual=False
-    if manual:
-        lat,lon=b['last_lat'],b['last_lon']; speed=b['last_speed'] or 0; heading=b['last_heading'] or 0; accuracy=b['last_accuracy']; progress=None; gps='LIVE GPS'
+    b=dict(row); number=b['number']
+    # Custom buses/routes must not crash the fleet/admin API. Only the ten
+    # explicitly configured demo routes receive simulated map coordinates.
+    if number in ROUTES:
+        route,stops=ROUTES[number]
+        demo_path=PATHS[number]
     else:
-        x,z,heading,progress=demo_state(number); lat=CAMPUS['lat']+z*.004; lon=CAMPUS['lon']+x*.004; speed=28+(b['id']%5)*3; accuracy=None; gps='DEMO GPS'
+        route=b.get('route_name') or 'Unassigned route'
+        c=db()
+        stop_rows=c.execute(
+            'SELECT name FROM stops WHERE route_id=? AND active=1 ORDER BY stop_order',
+            (b.get('route_id'),)
+        ).fetchall() if b.get('route_id') else []
+        c.close()
+        stops=[x['name'] for x in stop_rows] or ['No stops configured']
+        demo_path=[]
+    manual=bool(b.get('manual_until') and b['manual_until']>time.time() and b.get('last_lat') is not None)
+    stale_live=bool(b.get('last_gps') and (time.time()-b['last_gps'])>GPS_TIMEOUT_SECONDS) and not bool(b.get('simulated'))
+    if stale_live: manual=False
+    progress=None
+    if manual:
+        lat,lon=b['last_lat'],b['last_lon']; speed=b.get('last_speed') or 0
+        heading=b.get('last_heading') or 0; accuracy=b.get('last_accuracy'); gps='LIVE GPS'
+    elif demo_path and b.get('simulated'):
+        x,z,heading,progress=demo_state(number)
+        lat=CAMPUS['lat']+z*.004; lon=CAMPUS['lon']+x*.004
+        speed=28+(b['id']%5)*3; accuracy=None; gps='DEMO GPS'
+    else:
+        # Never invent a location for a real/custom bus without a fresh GPS fix.
+        lat=lon=None; speed=0; heading=0; accuracy=None
+        gps='OFFLINE' if stale_live else 'NO GPS'
     idx=min(len(stops)-1,int((progress or 0)*(len(stops)-1)))
-    route_km=round(sum(math.hypot(PATHS[number][i+1][0]-PATHS[number][i][0],PATHS[number][i+1][1]-PATHS[number][i][1]) for i in range(len(PATHS[number])-1))*0.42,1)
-    duration=70+(int(number[-2:])%4)*12
-    return {'id':b['id'],'number':number,'route':route,'stops':stops,'driver':'Assigned Driver' if b['driver_id'] else 'Unassigned','lat':lat,'lon':lon,'speed':round(speed,1),'heading':round(heading,1),'next_stop':stops[idx],'destination':stops[-1],'eta_minutes':max(1,round((1-(progress or 0))*18)),'status':('OFFLINE' if stale_live else b['status']),'capacity':b['capacity'],'passengers':min(b['capacity'],8+(int(time.time()/10)+b['id'])%30),'live':manual,'gps_status':('OFFLINE' if stale_live else gps),'accuracy':accuracy,'last_update':datetime.fromtimestamp(b['last_gps']).strftime('%d %b %Y %I:%M:%S') if b['last_gps'] else 'Demo clock','progress':progress,'path':PATHS[number],'route_km':route_km,'demo_duration':duration,'server_time':time.time()}
+    route_km=round(sum(math.hypot(demo_path[i+1][0]-demo_path[i][0],demo_path[i+1][1]-demo_path[i][1]) for i in range(len(demo_path)-1))*0.42,1) if demo_path else 0
+    duration=70+(int(number[-2:])%4)*12 if number in ROUTES else None
+    return {'id':b['id'],'number':number,'route':route,'stops':stops,'driver':'Assigned Driver' if b.get('driver_id') else 'Unassigned','lat':lat,'lon':lon,'speed':round(speed,1),'heading':round(heading,1),'next_stop':stops[idx],'destination':stops[-1],'eta_minutes':max(1,round((1-(progress or 0))*18)) if progress is not None else None,'status':('OFFLINE' if stale_live else b.get('status')),'capacity':b.get('capacity',45),'passengers':None,'live':manual,'gps_status':('OFFLINE' if stale_live else gps),'accuracy':accuracy,'last_update':datetime.fromtimestamp(b['last_gps']).strftime('%d %b %Y %I:%M:%S') if b.get('last_gps') else ('Demo clock' if gps=='DEMO GPS' else 'No GPS update'),'progress':progress,'path':demo_path,'route_km':route_km,'demo_duration':duration,'server_time':time.time()}
 
 
 @app.get('/api/csrf')
