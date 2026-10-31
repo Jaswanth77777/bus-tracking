@@ -120,6 +120,40 @@ body{background:radial-gradient(ellipse at 12% 0%,rgba(128,86,200,.10),transpare
 @media(max-width:650px){#joyThemeToggle{right:12px;bottom:12px;padding:10px 13px;font-size:12px}.top{gap:8px}.nav{max-width:100%}}
 @media(prefers-reduced-motion:no-preference){.btn,#joyThemeToggle,.bus{transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}}
 </style>
+
+<style id="joy-v2-design">
+:root{--bg:#f4f2fa;--panel:#fff;--line:#e5deef;--text:#261b3b;--muted:#786b8c;--blue:#6841a5;--green:#287c68;--red:#b94a62;--yellow:#9b762d}
+html,body{background:#f4f2fa!important;color:#261b3b!important;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+body{background:radial-gradient(ellipse at 12% 0,#eee7fa 0,transparent 42%),#f7f6fa!important}
+.top{background:rgba(255,255,255,.96)!important;border-bottom:1px solid #e5deef!important;box-shadow:0 5px 22px #34204d0c!important}
+.brand,h1,h2,h3,h4{color:#34204f!important}
+.btn{background:#fff!important;color:#49365f!important;border:1px solid #dcd2e9!important;border-radius:11px!important}
+.btn:hover{border-color:#7952b5!important;color:#6841a5!important}
+.btn.primary{background:linear-gradient(135deg,#6841a5,#8764bd)!important;color:#fff!important;border-color:#6841a5!important}
+.btn.danger{background:#fff1f3!important;color:#a83250!important;border-color:#f0c8d2!important}
+.hero,.panel{background:#fff!important;border:1px solid #e8e1ef!important;border-radius:18px!important;box-shadow:0 10px 30px #35204d0b!important}
+.hero{border-top:3px solid #7650ad!important}
+.stat,.bus,.route,.card,.setting,.accessgrid>div,.profile-card{background:#faf9fc!important;border:1px solid #e8e1ef!important;color:#34204f!important}
+.stat b{color:#6841a5!important}
+.bus:hover,.bus.sel{border-color:#7952b5!important;box-shadow:0 0 0 2px #7952b51a!important}
+.pill{background:#eee8f5!important;color:#60467f!important}
+.live{background:#e2f3eb!important;color:#21684f!important}
+.demo{background:#fff4d9!important;color:#8c641b!important}
+.input{background:#fff!important;color:#261b3b!important;border:1px solid #d9cfe5!important;border-radius:11px!important}
+.input:focus{outline:3px solid #7952b51c;border-color:#7952b5}
+.notice{background:#f0eafa!important;border:1px solid #ded0f0!important;color:#563b79!important}
+.map-shell{border:1px solid #ded5e8!important;border-radius:15px!important;overflow:hidden}
+.map-title,.map-legend{background:#fff!important;color:#34204f!important;border:1px solid #e5deef!important;box-shadow:0 4px 14px #34204f18}
+.map-tools .btn{background:#fff!important;color:#34204f!important}
+.modalbox{background:#fff!important;color:#261b3b!important;border:1px solid #e5deef!important}
+.toast{background:#34204f!important;color:#fff!important;border:1px solid #60467f!important}
+.auth-brand{background:linear-gradient(145deg,#302044,#6841a5)!important}
+.auth-card{border:1px solid #e8e1ef!important;box-shadow:0 18px 50px #35204d12!important}
+.logo-img{border:1px solid #eee8f5}
+#joyThemeToggle{position:fixed;right:18px;bottom:18px;z-index:80;border:1px solid #dcd2e9;background:#fff;color:#49365f;border-radius:999px;padding:10px 14px;box-shadow:0 5px 18px #34204f18}
+@media(max-width:700px){.wrap{padding:12px}.stats{gap:8px}.stat{padding:10px}.top{gap:8px}.nav{max-height:none}}
+</style>
+
 </head>
 <body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
 <script>
