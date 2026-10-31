@@ -108,8 +108,15 @@ const FACILITIES=[['Main Gate',-2,0],['Administrative Block',-12,-8],['Library',
 function initMap(){
   const host=$('#liveMap'); if(!host)return;
   if(window.L){
-    mapState.map=L.map(host,{zoomControl:true,preferCanvas:true}).setView([CAMPUS_LAT,CAMPUS_LON],14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'}).addTo(mapState.map);
+    mapState.map=L.map(host,{zoomControl:true,preferCanvas:true,scrollWheelZoom:true}).setView([CAMPUS_LAT,CAMPUS_LON],15);
+    const voyager=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'});
+    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+    const light=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'});
+    voyager.addTo(mapState.map);
+    L.control.layers({'Street map (recommended)':voyager,'OpenStreetMap':osm,'Light map':light},null,{collapsed:true,position:'topright'}).addTo(mapState.map);
+    L.control.scale({metric:true,imperial:false,position:'bottomleft'}).addTo(mapState.map);
+    let tileFallbackDone=false;
+    voyager.on('tileerror',()=>{if(!tileFallbackDone){tileFallbackDone=true;if(mapState.map.hasLayer(voyager)){mapState.map.removeLayer(voyager);osm.addTo(mapState.map);toast('Street map switched to OpenStreetMap fallback')}}});
     mapState.stopLayer=L.layerGroup().addTo(mapState.map); mapState.ready=true; mapState.fallback=false;
     window.addEventListener('resize',()=>setTimeout(()=>mapState.map&&mapState.map.invalidateSize(),100));
     buses.forEach(b=>ensureBusMarker(b));
@@ -136,12 +143,25 @@ function buildOfflineRoad(b){
 }
 async function loadRoadRoute(b){
   if(!b)return;
-  // The demo route is deliberately local and deterministic, so movement works
-  // even with no GPS and even if the external routing service is unavailable.
-  roadRoutes[b.id]=buildOfflineRoad(b);
+  const offline=buildOfflineRoad(b);
+  roadRoutes[b.id]=offline;
   if(mapState.map)renderSelectedRoadRoute(b);
-  // If this bus is currently selected, restart from its visible position on the
-  // newly loaded route without moving any other bus.
+  // Request a road-following route from OSRM using the route's ordered stop coordinates.
+  try{
+    const stops=offline.stopCoords;
+    if(stops.length>=2){
+      const coords=stops.map(p=>p[1]+','+p[0]).join(';');
+      const url='https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson&steps=false';
+      const response=await fetch(url,{headers:{'Accept':'application/json'}});
+      if(!response.ok)throw new Error('Road router unavailable');
+      const data=await response.json();
+      const geometry=data.routes&&data.routes[0]&&data.routes[0].geometry&&data.routes[0].geometry.coordinates;
+      if(data.code==='Ok'&&geometry&&geometry.length>1){
+        roadRoutes[b.id]={coords:geometry.map(p=>[p[1],p[0]]),stopCoords:stops,realRoad:true,distance:data.routes[0].distance,duration:data.routes[0].duration};
+      }
+    }
+  }catch(err){console.info('Using offline route fallback for',b.number,err)}
+  if(mapState.map&&Number(selected)===Number(b.id))renderSelectedRoadRoute(b);
   if(Number(selected)===Number(b.id))startSelectedBusMovement(b);
   return roadRoutes[b.id];
 }
