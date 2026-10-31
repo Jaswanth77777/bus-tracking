@@ -109,14 +109,18 @@ function initMap(){
   const host=$('#liveMap'); if(!host)return;
   if(window.L){
     mapState.map=L.map(host,{zoomControl:true,preferCanvas:true,scrollWheelZoom:true}).setView([CAMPUS_LAT,CAMPUS_LON],15);
-    const voyager=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'});
-    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
-    const light=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO'});
-    voyager.addTo(mapState.map);
-    L.control.layers({'Street map (recommended)':voyager,'OpenStreetMap':osm,'Light map':light},null,{collapsed:true,position:'topright'}).addTo(mapState.map);
+    // Use OpenStreetMap as the primary street basemap. It does not require a CARTO API key.
+    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      maxNativeZoom:19,
+      attribution:'© OpenStreetMap contributors',
+      crossOrigin:true
+    });
+    osm.addTo(mapState.map);
+    L.control.layers({'OpenStreetMap street map':osm},null,{collapsed:true,position:'topright'}).addTo(mapState.map);
     L.control.scale({metric:true,imperial:false,position:'bottomleft'}).addTo(mapState.map);
-    let tileFallbackDone=false;
-    voyager.on('tileerror',()=>{if(!tileFallbackDone){tileFallbackDone=true;if(mapState.map.hasLayer(voyager)){mapState.map.removeLayer(voyager);osm.addTo(mapState.map);toast('Street map switched to OpenStreetMap fallback')}}});
+    let tileErrorShown=false;
+    osm.on('tileerror',()=>{if(!tileErrorShown){tileErrorShown=true;toast('Map tiles could not load. Check your internet connection and refresh the map.')}});
     mapState.stopLayer=L.layerGroup().addTo(mapState.map); mapState.ready=true; mapState.fallback=false;
     window.addEventListener('resize',()=>setTimeout(()=>mapState.map&&mapState.map.invalidateSize(),100));
     buses.forEach(b=>ensureBusMarker(b));
