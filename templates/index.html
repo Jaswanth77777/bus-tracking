@@ -17,6 +17,56 @@ button,input,textarea{font:inherit}button{cursor:pointer}.top{height:auto;min-he
 .input{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#04101b;color:white;margin:5px 0 9px}.auth{max-width:850px;margin:8vh auto;padding:18px}.toast{position:fixed;right:18px;bottom:18px;z-index:100;background:#0d2338;border:1px solid #2563eb;padding:13px 16px;border-radius:12px}.modal{position:fixed;inset:0;background:#000b;z-index:90;display:grid;place-items:center;padding:20px}.modalbox{width:min(650px,100%);background:#0a1b2c;border:1px solid var(--line);border-radius:18px;padding:20px;max-height:90vh;overflow:auto}
 .setting{display:block;padding:13px;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:#06111c;cursor:pointer}.setting input{width:18px;height:18px;vertical-align:middle;margin-right:10px}.accessgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.accessgrid>div{padding:12px;border:1px solid var(--line);border-radius:10px;background:#06111c}.accessgrid b{font-size:12px;color:#86efac}.profile-card{display:flex;align-items:center;gap:15px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#06111c}.avatar{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#06a6d6,#2563eb);font-size:24px;font-weight:900}.leaflet-popup-content b{color:#7dd3fc}
 @media(max-width:1000px){.grid{grid-template-columns:1fr}.map-shell{height:520px}.campus-info{grid-template-columns:1fr}.photo{height:220px}}@media(max-width:650px){.stats{grid-template-columns:1fr 1fr}.top{align-items:flex-start}.nav{max-height:130px;overflow:auto}.map-shell{height:470px}}
+
+/* JOY University visual refresh — clean campus identity */
+:root{--bg:#f3f6fa;--panel:#ffffff;--line:#e2e8f0;--text:#172b4d;--muted:#64748b;--blue:#0f766e;--green:#15803d;--red:#dc2626;--yellow:#b7791f}
+html,body{background:#f3f6fa!important;color:#172b4d!important;font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif}
+body{background:linear-gradient(135deg,#f8fafc 0%,#eef4f8 55%,#f8fafc 100%)!important}
+.top{background:rgba(255,255,255,.96)!important;border-bottom:1px solid #e2e8f0!important;box-shadow:0 4px 18px #0f172a0c!important;color:#172b4d!important;padding:10px 22px}
+.brand{color:#172b4d}.brand>div:last-child{letter-spacing:.01em}
+.logo-img{width:72px;height:58px;object-fit:contain;background:#fff;border-radius:10px;padding:2px;flex:none}
+.nav{gap:8px}.btn{background:#fff!important;color:#23415f!important;border:1px solid #d6e0e9!important;border-radius:11px!important;padding:10px 14px!important;box-shadow:0 2px 5px #0f172a08;transition:all .18s ease}
+.btn:hover{border-color:#0f766e!important;color:#0f766e!important;transform:translateY(-1px)}
+.btn.primary{background:#0f766e!important;color:#fff!important;border-color:#0f766e!important;box-shadow:0 5px 14px #0f766e26}
+.btn.primary:hover{background:#115e59!important;color:#fff!important}
+.btn.danger{background:#fff1f2!important;color:#be123c!important;border-color:#fecdd3!important}
+.wrap{max-width:1600px;padding:24px}
+.hero,.panel{background:#fff!important;border:1px solid #e5ebf1!important;border-radius:18px!important;box-shadow:0 8px 28px #18324b0b!important;color:#172b4d}
+.hero{padding:22px;margin-bottom:18px;border-top:3px solid #0f766e!important}
+.panel{overflow:hidden}.pad{padding:20px}
+h1,h2,h3,h4{color:#17324f;letter-spacing:-.025em}h1{font-size:clamp(23px,2.4vw,32px)}h2{font-size:22px}
+.muted{color:#718096!important}.small{font-size:12px}
+.grid{gap:18px}.buslist{background:#fbfdff}.bus{background:#fff!important;border:1px solid #e5ebf1!important;border-radius:13px!important;color:#243b53;box-shadow:0 2px 8px #0f172a06}
+.bus:hover,.bus.sel{border-color:#0f766e!important;box-shadow:0 0 0 2px #0f766e16!important}
+.pill{background:#e8eef5;color:#38516b}.live{background:#dcfce7;color:#166534}.demo{background:#fef3c7;color:#92400e}
+.stat{background:linear-gradient(145deg,#fff,#f8fbfd)!important;border:1px solid #e4ebf1!important;border-radius:14px;color:#64748b}
+.stat b{color:#123b50;font-size:27px}
+.notice{background:#ecfdf5!important;border:1px solid #bbf7d0!important;color:#166534!important;border-radius:12px}
+.route,.card,.setting,.accessgrid>div,.profile-card{background:#f8fafc!important;border:1px solid #e2e8f0!important;color:#263c53}
+.input{background:#fff!important;color:#172b4d!important;border:1px solid #cbd5e1!important;border-radius:11px!important;padding:12px 14px!important}
+.input:focus{outline:3px solid #0f766e20;border-color:#0f766e}
+.map-shell{border-radius:15px;overflow:hidden;border:1px solid #dbe4eb;background:#e5edf0}
+.map-title,.map-legend{background:#fff!important;color:#17324f!important;border:1px solid #dbe4eb!important;box-shadow:0 4px 14px #0f172a16}
+.map-tools .btn{background:#fff!important;color:#17324f!important}
+.map-legend{color:#334155!important}
+.detail{margin-top:18px}
+.toast{background:#17324f!important;color:#fff!important;border:1px solid #31536f!important;box-shadow:0 8px 28px #0f172a30}
+.modal{background:#0f172a80}.modalbox{background:#fff!important;color:#172b4d!important;border:1px solid #e2e8f0!important;box-shadow:0 20px 60px #0f172a30}
+.auth{max-width:1120px;margin:5vh auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:stretch}
+.auth-brand{min-height:590px;border-radius:24px;padding:42px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#102f49,#0f766e);color:#fff;box-shadow:0 18px 50px #15364b25;position:relative;overflow:hidden}
+.auth-brand:after{content:"";position:absolute;width:360px;height:360px;border:1px solid #ffffff30;border-radius:50%;right:-130px;bottom:-150px;box-shadow:0 0 0 35px #ffffff0c,0 0 0 75px #ffffff08}
+.auth-brand .logo-img{width:150px;height:110px;background:#fff;padding:7px;border-radius:16px}
+.auth-brand h1{font-size:36px;line-height:1.12;color:#fff;margin:28px 0 12px}
+.auth-brand p{color:#d8e8ee;line-height:1.7;max-width:420px}
+.auth-brand .eyebrow{font-size:12px;letter-spacing:.18em;font-weight:800;color:#b8e4db}
+.auth-card{padding:30px;background:#fff;border:1px solid #e5ebf1;border-radius:24px;box-shadow:0 18px 50px #18324b12}
+.auth-card h2{margin:0 0 5px;font-size:27px}.auth-card .btn{min-height:46px}
+.auth-card hr{border:0;border-top:1px solid #e5ebf1;margin:24px 0}
+.auth-card .small{line-height:1.7}
+.auth-card .input{margin:7px 0 12px}
+@media(max-width:800px){.auth{grid-template-columns:1fr;margin:12px auto;padding:12px}.auth-brand{min-height:270px;padding:26px}.auth-brand h1{font-size:29px;margin:18px 0 8px}.auth-brand .logo-img{width:110px;height:80px}.auth-card{padding:22px}.wrap{padding:13px}.top{padding:10px 12px;flex-wrap:wrap}.nav{justify-content:flex-start}}
+@media(max-width:480px){.logo-img{width:54px;height:46px}.brand{font-size:13px}.auth-brand{min-height:235px}.auth-brand h1{font-size:25px}}
+
 </style><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/socket.io/socket.io.js"></script>
 </head>
 <body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
@@ -35,7 +85,7 @@ async function api(url,opt={}){const method=(opt.method||'GET').toUpperCase();co
 function toast(s){const t=$('#toast');if(!t)return;t.textContent=s;t.style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.style.display='none',3000)}
 function setupRealtime(){if(!window.io)return;try{const socket=io();socket.on('bus_update',e=>{const b=buses.find(x=>x.id===e.bus_id);if(b){b.lat=e.lat;b.lon=e.lon;b.speed=e.speed;b.heading=e.heading;b.accuracy=e.accuracy;b.live=true;b.gps_status='LIVE GPS';if(selected===b.id&&mapState.map&&mapState.markers[b.id])mapState.markers[b.id].setLatLng([e.lat,e.lon]);}});socket.on('emergency',e=>toast('🚨 EMERGENCY: '+(e.message||'New alert')));socket.on('trip_started',e=>{if(currentView==='fleet')toast('Trip started for bus #'+e.bus_id)});socket.on('trip_ended',e=>{if(currentView==='fleet')toast('Trip ended for bus #'+e.bus_id)});}catch(e){console.warn('Realtime unavailable',e)}}
 async function boot(){saveSettings();setupRealtime();try{const j=await api('/api/me');me=j.user;if(me)home();else login()}catch(e){login()}}
-function login(){$('#app').innerHTML=`<div class="auth"><div class="hero"><div class="brand"><img class="logo-img" src="/static/joy-university-logo.svg" alt="JOY University logo"><div><div style="font-size:23px">JOY UNIVERSITY BUS TRACKING</div><div class="muted">CAMPUS LIVE MAP • STUDENT TRANSPORT</div></div></div><div class="notice">Campus-focused live map with moving buses, route stops, ETA and driver GPS. Road-map view only.</div></div><div class="panel pad"><h2>Login</h2><input id="li" class="input" placeholder="Email / University ID"><input id="lp" class="input" type="password" placeholder="Password"><button class="btn primary" style="width:100%" onclick="doLogin()">LOGIN</button><p class="muted small">Student: student@joyuniversity.edu / Student@123</p><p class="muted small">Driver: driver@joyuniversity.edu / Driver@123</p><p class="muted small">Admin: admin@joyuniversity.edu / Admin@123</p><hr style="border-color:#1e3a54"><h3>Student registration</h3><input id="rn" class="input" placeholder="Full name"><input id="re" class="input" placeholder="Email"><input id="rp" class="input" type="password" placeholder="Password (8+ characters)"><button class="btn" onclick="registerStudent()">CREATE ACCOUNT</button></div></div>`}
+function login(){$('#app').innerHTML=`<div class="auth"><section class="auth-brand"><div><img class="logo-img" src="/static/joy-university-logo.svg" alt="JOY University logo"><div class="eyebrow" style="margin-top:28px">JOY UNIVERSITY • SEMPER PARATUS</div><h1>Campus journeys,<br>connected.</h1><p>A smarter way to follow university buses, check routes and stay informed throughout your campus commute.</p></div><div style="position:relative;z-index:1;color:#d8e8ee;font-size:13px">JOY UNIVERSITY BUS TRACKING SYSTEM</div></section><section class="auth-card"><div class="eyebrow" style="color:#0f766e;font-size:11px;font-weight:900;letter-spacing:.15em">WELCOME BACK</div><h2>Sign in to your account</h2><p class="muted small">Use your university email or ID to continue.</p><input id="li" class="input" placeholder="Email / University ID" autocomplete="username"><input id="lp" class="input" type="password" placeholder="Password" autocomplete="current-password"><button class="btn primary" style="width:100%" onclick="doLogin()">SIGN IN →</button><p class="muted small" style="margin-top:13px">Demo accounts</p><p class="muted small">Student: student@joyuniversity.edu / Student@123<br>Driver: driver@joyuniversity.edu / Driver@123<br>Admin: admin@joyuniversity.edu / Admin@123</p><hr><h3 style="margin:0 0 5px">New student?</h3><p class="muted small">Create your student account below.</p><input id="rn" class="input" placeholder="Full name" autocomplete="name"><input id="re" class="input" placeholder="University email" autocomplete="email"><input id="rp" class="input" type="password" placeholder="Create password (8+ characters)" autocomplete="new-password"><button class="btn" style="width:100%" onclick="registerStudent()">CREATE STUDENT ACCOUNT</button><p class="muted small" style="margin-top:18px;text-align:center">Secure campus transport access • JOY University</p></section></div>`}
 async function doLogin(){try{const j=await api('/api/login',{method:'POST',body:JSON.stringify({identity:$('#li').value,password:$('#lp').value})});me=j.user;home()}catch(e){toast(e.message)}}
 async function registerStudent(){try{const j=await api('/api/register/student',{method:'POST',body:JSON.stringify({name:$('#rn').value,email:$('#re').value,password:$('#rp').value})});toast('Account created: '+j.uid)}catch(e){toast(e.message)}}
 async function logout(){const btn=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='LOGOUT');if(btn)btn.disabled=true;try{const r=await fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',credentials:'same-origin'});if(!r.ok)throw Error('Logout failed');}catch(e){console.warn(e)}finally{me=null;selected=null;try{sessionStorage.clear()}catch(_){};if(gpsWatch!==null){try{navigator.geolocation.clearWatch(gpsWatch)}catch(_){}};location.replace(location.pathname+'?loggedout='+Date.now())}}
