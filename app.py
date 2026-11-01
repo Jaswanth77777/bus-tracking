@@ -197,14 +197,7 @@ def init_db():
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
-    # Keep the published demo credentials synchronized with the demo accounts.
-    # INSERT OR IGNORE alone leaves an older password hash unchanged on existing DBs.
-    for n,e,p,r,u in [('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001'),('Demo Administrator','demo-admin@joyuniversity.edu','JoyDemoAdmin!26','admin','DEMOADM')]:
-        existing=c.execute('SELECT id FROM users WHERE lower(email)=?',(e.lower(),)).fetchone()
-        if existing:
-            c.execute('UPDATE users SET name=?,password=?,role=?,uid=?,active=1,updated_at=? WHERE id=?',(n,generate_password_hash(p),r,u,now(),existing['id']))
-        else:
-            c.execute('INSERT INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),r,u,1,now(),now()))
+    # Public demo accounts are no longer provisioned. University users are created by an authenticated administrator.
     # Preserve the initial administrator account on first setup without resetting
     # an administrator's password on every application startup.
     c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',('System Admin','admin@joyuniversity.edu',generate_password_hash('Admin@123'),'admin','ADM001',1,now(),now()))
@@ -397,24 +390,9 @@ def login():
     identity=str(d.get('identity') or '').strip().lower()
     password=d.get('password') or ''
     c=db()
-    # Repair the three published demo accounts at sign-in time as well as at
-    # startup. This covers fresh/isolated Vercel serverless database instances.
-    demo_accounts={
-        'student@joyuniversity.edu':('Demo Student','Student@123','student','JOY001'),
-        'driver@joyuniversity.edu':('Demo Driver','Driver@123','driver','DRV001'),
-        'demo-admin@joyuniversity.edu':('Demo Administrator','JoyDemoAdmin!26','admin','DEMOADM'),
-    }
-    demo=demo_accounts.get(identity)
-    if demo and password==demo[1]:
-        name, demo_password, role, uid=demo
-        existing=c.execute('SELECT id FROM users WHERE lower(email)=?',(identity,)).fetchone()
-        if existing:
-            c.execute('UPDATE users SET name=?,password=?,role=?,uid=?,active=1,updated_at=? WHERE id=?',
-                      (name,generate_password_hash(demo_password),role,uid,now(),existing['id']))
-        else:
-            c.execute('INSERT INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
-                      (name,identity,generate_password_hash(demo_password),role,uid,1,now(),now()))
-        c.commit()
+    if identity in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu'):
+        c.close()
+        return jsonify(ok=False,error='Public demo accounts have been retired. Use credentials issued by the JOY University administrator.'),403
     r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone()
     c.close()
     if not r or not r['active'] or not check_password_hash(r['password'],password):
