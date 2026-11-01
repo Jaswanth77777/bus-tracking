@@ -481,7 +481,7 @@ def register_student():
         # account created through the form is active immediately. Later Admin
         # accounts are inactive and can only be enabled by the first Admin.
         first_admin=not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 LIMIT 1").fetchone()
-        active=1 if role=='admin' and first_admin else 0
+        active=1 if role in ('student','driver') or (role=='admin' and first_admin) else 0
         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
             (name,email,generate_password_hash(password),role,uid,phone,active,now(),now()))
         user_id=cur.lastrowid
@@ -497,7 +497,7 @@ def register_student():
         c.rollback(); c.close()
         raise
     c.close()
-    message='Admin account created. Sign in with the email and password you just created.' if active else 'Admin account created. Ask the first Admin to activate this account.'
+    message=(f'{role.title()} account created. You can sign in now.' if active else 'Admin account created. Ask the first Admin to activate this account.')
     return jsonify(ok=True,message=message,uid=uid),201
 
 @app.get('/api/buses')
