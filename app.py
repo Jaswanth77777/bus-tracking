@@ -12,6 +12,12 @@ except Exception:
     SocketIO = None
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+# Load local development configuration without overriding real environment variables.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(BASE, '.env'))
+except ImportError:
+    pass
 # Vercel deployments run from an immutable filesystem. Keep the SQLite file in
 # /tmp there so the app can boot and handle demo/session data without trying
 # to write into the deployment bundle. For persistent production data, set
@@ -472,8 +478,8 @@ def register_student():
         return jsonify(ok=False,error='Enter a valid email address.'),400
     if len(password)<8 or len(password)>128:
         return jsonify(ok=False,error='Password must be 8–128 characters.'),400
-    if role not in ('student','driver','admin'):
-        return jsonify(ok=False,error='Choose student, driver, or admin.'),403
+    if role != 'student':
+        return jsonify(ok=False,error='Public registration is for students only. Driver and administrator accounts must be created by an authorized administrator.'),403
     c=db()
     try:
         if c.execute('SELECT 1 FROM users WHERE lower(email)=?',(email,)).fetchone():
@@ -892,9 +898,7 @@ if __name__=='__main__':
     print('='*60)
     print('JOY UNIVERSITY BUS TRACKING - LIVE ROAD MAP + SMOOTH BUS MOVEMENT')
     print('Open: http://127.0.0.1:5000')
-    print('Student: student@joyuniversity.edu / Student@123')
-    print('Driver:  driver@joyuniversity.edu / Driver@123')
-    print('Admin:   admin@joyuniversity.edu / Admin@123')
+    print('Sign in using an account created by an authorized JOY University administrator.')
     print('='*60)
     if socketio: socketio.run(app,host='0.0.0.0',port=int(os.environ.get('PORT','5000')),debug=False,allow_unsafe_werkzeug=True)
     else: app.run(host='0.0.0.0',port=int(os.environ.get('PORT','5000')),debug=False)
