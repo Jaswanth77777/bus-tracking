@@ -404,9 +404,11 @@ def login():
     # Allow the configured bootstrap administrator to activate an existing
     # pending application, but only while no other active administrator exists.
     bootstrap_email=os.environ.get('JOY_ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
-    if r and r['role']=='admin' and not r['active'] and bootstrap_email and r['email'].lower()==bootstrap_email and check_password_hash(r['password'],password):
-        active_admin=c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 AND id<>? LIMIT 1",(r['id'],)).fetchone()
-        if not active_admin:
+    demo_mode=os.environ.get('JOY_DEMO_MODE','').strip().lower() in ('1','true','yes','on')
+    if r and r['role']=='admin' and not r['active'] and check_password_hash(r['password'],password):
+        demo_bootstrap=demo_mode and not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 AND id<>? LIMIT 1",(r['id'],)).fetchone()
+        configured_bootstrap=bootstrap_email and r['email'].lower()==bootstrap_email and not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 AND id<>? LIMIT 1",(r['id'],)).fetchone()
+        if demo_bootstrap or configured_bootstrap:
             c.execute('UPDATE users SET active=1,updated_at=? WHERE id=?',(now(),r['id']))
             c.commit()
             r=c.execute('SELECT * FROM users WHERE id=?',(r['id'],)).fetchone()
@@ -480,8 +482,10 @@ def register_student():
         # Only the email explicitly configured by the owner can bootstrap the
         # first active administrator. All other public admin applications wait
         # for approval by an already-authorized administrator.
+        demo_mode=os.environ.get('JOY_DEMO_MODE','').strip().lower() in ('1','true','yes','on')
         bootstrap_email=os.environ.get('JOY_ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
-        active=1 if role=='admin' and bootstrap_email and email==bootstrap_email and not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 LIMIT 1").fetchone() else 0
+        first_admin=not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 LIMIT 1").fetchone()
+        active=1 if role=='admin' and first_admin and (demo_mode or (bootstrap_email and email==bootstrap_email)) else 0
         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
             (name,email,generate_password_hash(password),role,uid,phone,active,now(),now()))
         user_id=cur.lastrowid
@@ -497,7 +501,7 @@ def register_student():
         c.rollback(); c.close()
         raise
     c.close()
-    message='Administrator account created and ready to sign in.' if active else 'Application submitted. Your account will be available after administrator approval.'
+    message='Administrator account created. You can sign in now.' if active else 'Application submitted. Your account will be available after administrator approval.'
     return jsonify(ok=True,message=message,uid=uid),201
 
 @app.get('/api/buses')
