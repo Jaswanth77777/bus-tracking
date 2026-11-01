@@ -497,7 +497,7 @@ async function adminPage(section='overview'){
  currentView='admin';adminSection=section;
  if(me.email==='demo-admin@joyuniversity.edu'){
   const demoItems={overview:'Dashboard overview',students:'Student account management',drivers:'Driver account management',import:'Bulk student import (Excel)',buses:'Bus and fleet management',routes:'Routes and bus stops',assignments:'Driver-to-bus assignments',trips:'Trip and GPS monitoring',attendance:'Student attendance reports',complaints:'Complaints management',emergencies:'Emergency alert management',maintenance:'Bus maintenance reports',settings:'Settings and account information',exports:'Export records (Excel / CSV)'};
-  const demoNav=Object.entries(demoItems).map(([key,label])=>'<button class="joy-admin-nav '+(section===key?'active':'')+'" onclick="adminPage(\''+key+' \')"><span>›</span>'+label+'</button>').join('');
+  const demoNav=Object.entries(demoItems).map(([key,label])=>'<button class="joy-admin-nav '+(section===key?'active':'')+'" onclick="adminPage(\''+key+'\')"><span>›</span>'+label+'</button>').join('');
   const demoTitle=demoItems[section]||demoItems.overview;
   const demoTable=(heads,rows)=>'<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   let demoBody='';
