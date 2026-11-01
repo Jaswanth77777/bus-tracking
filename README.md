@@ -114,3 +114,16 @@ SQLite is suitable for a small deployment/demo. For a larger production fleet, m
 - Run database backups.
 - Use PostgreSQL for a large fleet/high-write GPS workload.
 - Configure an appropriate GPS timeout for your operating area.
+
+
+## Feature verification notes
+
+The admin API supplies fleet, users, drivers, assignments, routes, stops, complaints, emergency records, maintenance reports, attendance and recent trips. The browser admin workspace uses these records for its management views and CSV exports. Student Excel import requires an authenticated administrator session and a CSRF token.
+
+### Deployment data warning
+
+A successful Vercel build confirms that the source was packaged and deployed; it does not validate login flows or create persistent storage. The current application still uses SQLite. On Vercel it stores the database under `/tmp`, which is ephemeral. Do not use this deployment as the authoritative store for real student identities, attendance, GPS history or safety incidents until a managed persistent database has been integrated and tested. PostgreSQL integration is not included by this repository update.
+
+### Verification scope
+
+Repository changes are pushed to GitHub. They have not been exercised against a live Vercel deployment or a production database in this session. After deployment, sign in with an authorised admin account and verify each page, especially Excel import, trip monitoring, maintenance, attendance, emergency status updates and exports.
