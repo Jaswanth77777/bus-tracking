@@ -198,9 +198,14 @@ def init_db():
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
+    # Retire the legacy random-password bootstrap account when an owner has
+    # explicitly configured the email for the real first administrator.
+    bootstrap_email=os.environ.get('JOY_ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
+    if bootstrap_email:
+        c.execute("UPDATE users SET active=0,updated_at=? WHERE role='admin' AND lower(email)='admin@joyuniversity.edu' AND lower(email)<>?",(now(),bootstrap_email))
     # Do not create an administrator with an undisclosed random password.
     # The first administrator is provisioned only through the explicit,
-    # private JOY_ADMIN_BOOTSTRAP_EMAIL deployment setting during registration.
+    # private JOY_ADMIN_BOOTSTRAP_EMAIL deployment setting.
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
     for r in c.execute("SELECT id FROM users WHERE role='student'").fetchall(): c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(r['id'],now()))
@@ -396,6 +401,15 @@ def login():
         c.close()
         return jsonify(ok=False,error='Public demo accounts have been retired. Use credentials issued by the JOY University administrator.'),403
     r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone()
+    # Allow the configured bootstrap administrator to activate an existing
+    # pending application, but only while no other active administrator exists.
+    bootstrap_email=os.environ.get('JOY_ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
+    if r and r['role']=='admin' and not r['active'] and bootstrap_email and r['email'].lower()==bootstrap_email and check_password_hash(r['password'],password):
+        active_admin=c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 AND id<>? LIMIT 1",(r['id'],)).fetchone()
+        if not active_admin:
+            c.execute('UPDATE users SET active=1,updated_at=? WHERE id=?',(now(),r['id']))
+            c.commit()
+            r=c.execute('SELECT * FROM users WHERE id=?',(r['id'],)).fetchone()
     c.close()
     if r and not r['active'] and check_password_hash(r['password'],password):
         return jsonify(ok=False,error='Your account application is pending administrator approval. Contact the JOY University administrator.'),403
