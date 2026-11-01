@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY AUTOINCREMENT,us
 CREATE TABLE IF NOT EXISTS boarding_history(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL REFERENCES users(id),bus_id INTEGER NOT NULL REFERENCES buses(id),stop_id INTEGER REFERENCES stops(id),stop_name TEXT,boarded_at TEXT NOT NULL,qr_token TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER,bus_id INTEGER,stop_name TEXT,boarded_at TEXT,qr_token TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS favorites(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,bus_id INTEGER REFERENCES buses(id) ON DELETE CASCADE,route_id INTEGER REFERENCES routes(id) ON DELETE CASCADE,created_at TEXT NOT NULL,UNIQUE(user_id,bus_id,route_id));
+CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,user_id INTEGER,actor_name TEXT,actor_email TEXT,actor_role TEXT,action TEXT NOT NULL,method TEXT NOT NULL,path TEXT NOT NULL,status_code INTEGER NOT NULL,ip_address TEXT,user_agent TEXT,details TEXT);
 '''
 
 
@@ -98,6 +99,33 @@ def security_headers(response):
 def csrf_token():
     if 'csrf_token' not in session: session['csrf_token'] = secrets.token_urlsafe(32)
     return session['csrf_token']
+
+@app.after_request
+def record_audit_event(response):
+    # Record successful and failed write/login actions without storing request bodies,
+    # passwords, session tokens, CSRF tokens, or other submitted secrets.
+    try:
+        is_login = request.path == '/api/login' and request.method == 'POST'
+        is_mutation = request.method in ('POST','PUT','PATCH','DELETE') and request.path not in ('/api/logout',)
+        if is_login or is_mutation:
+            uid=session.get('user_id')
+            actor=None
+            if uid:
+                c=db()
+                actor=c.execute('SELECT name,email,role FROM users WHERE id=?',(uid,)).fetchone()
+                c.close()
+            action=('LOGIN_SUCCESS' if response.status_code < 400 else 'LOGIN_FAILED') if is_login else request.method
+            details='Authentication attempt' if is_login else 'Request completed'
+            c=db()
+            c.execute('INSERT INTO audit_logs(created_at,user_id,actor_name,actor_email,actor_role,action,method,path,status_code,ip_address,user_agent,details) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                (now(),uid,actor['name'] if actor else None,actor['email'] if actor else None,actor['role'] if actor else None,
+                 action,request.method,request.path,response.status_code,request.headers.get('X-Forwarded-For',request.remote_addr),
+                 request.user_agent.string[:300],details))
+            c.commit()
+            c.close()
+    except Exception:
+        app.logger.exception('Could not write audit event')
+    return response
 
 @app.context_processor
 def inject_template_security(): return {'csrf_token': csrf_token()}
@@ -783,6 +811,53 @@ def admin_data():
     maintenance=[dict(r) for r in c.execute('SELECT m.*,b.number bus_number FROM maintenance m LEFT JOIN buses b ON b.id=m.bus_id ORDER BY m.id DESC LIMIT 50').fetchall()]
     attendance=[dict(r) for r in c.execute('SELECT a.*,u.name user_name,u.uid,b.number bus_number FROM attendance a LEFT JOIN users u ON u.id=a.user_id LEFT JOIN buses b ON b.id=a.bus_id ORDER BY a.id DESC LIMIT 50').fetchall()]
     routes=[dict(r) for r in c.execute('SELECT * FROM routes ORDER BY code').fetchall()]; stops=[dict(r) for r in c.execute('SELECT s.*,r.code route_code FROM stops s JOIN routes r ON r.id=s.route_id ORDER BY r.code,s.stop_order').fetchall()]; drivers=[dict(r) for r in c.execute('SELECT d.*,u.name,u.email,u.uid,u.active FROM drivers d JOIN users u ON u.id=d.user_id ORDER BY d.id').fetchall()]; assignments=[dict(r) for r in c.execute('SELECT a.*,u.name driver_name,b.number bus_number,r.name route_name FROM driver_bus_assignments a JOIN drivers d ON d.id=a.driver_id JOIN users u ON u.id=d.user_id JOIN buses b ON b.id=a.bus_id LEFT JOIN routes r ON r.id=a.route_id WHERE a.active=1 ORDER BY a.id DESC').fetchall()]; c.close(); return jsonify(ok=True,fleet=fleet,users=users,drivers=drivers,assignments=assignments,routes=routes,stops=stops,emergencies=emergencies,complaints=complaints,maintenance=maintenance,attendance=attendance)
+
+@app.get('/api/admin/audit-logs')
+@auth(['admin'])
+def admin_audit_logs():
+    try:
+        limit=max(1,min(500,int(request.args.get('limit',100))))
+        offset=max(0,int(request.args.get('offset',0)))
+    except ValueError:
+        return jsonify(ok=False,error='Invalid pagination'),400
+    query=str(request.args.get('q','')).strip()[:100]
+    role=str(request.args.get('role','')).strip().lower()[:30]
+    action=str(request.args.get('action','')).strip().upper()[:40]
+    start=str(request.args.get('from','')).strip()[:10]
+    end=str(request.args.get('to','')).strip()[:10]
+    clauses=[]; params=[]
+    if query:
+        clauses.append("(actor_name LIKE ? OR actor_email LIKE ? OR path LIKE ? OR ip_address LIKE ?)")
+        params.extend([f'%{query}%']*4)
+    if role:
+        clauses.append("actor_role=?"); params.append(role)
+    if action:
+        clauses.append("action=?"); params.append(action)
+    if start:
+        clauses.append("date(created_at)>=date(?)"); params.append(start)
+    if end:
+        clauses.append("date(created_at)<=date(?)"); params.append(end)
+    where=(' WHERE '+' AND '.join(clauses)) if clauses else ''
+    c=db()
+    total=c.execute('SELECT COUNT(*) n FROM audit_logs'+where,params).fetchone()['n']
+    rows=c.execute('SELECT id,created_at,user_id,actor_name,actor_email,actor_role,action,method,path,status_code,ip_address,user_agent,details FROM audit_logs'+where+' ORDER BY id DESC LIMIT ? OFFSET ?',params+[limit,offset]).fetchall()
+    c.close()
+    return jsonify(ok=True,items=[dict(r) for r in rows],total=total,limit=limit,offset=offset)
+
+@app.get('/api/admin/audit-logs/export.csv')
+@auth(['admin'])
+def admin_audit_export():
+    import csv
+    from io import StringIO
+    c=db()
+    rows=c.execute('SELECT id,created_at,user_id,actor_name,actor_email,actor_role,action,method,path,status_code,ip_address,user_agent,details FROM audit_logs ORDER BY id DESC LIMIT 10000').fetchall()
+    c.close()
+    output=StringIO()
+    writer=csv.writer(output)
+    writer.writerow(['ID','Timestamp UTC','User ID','Actor','Email','Role','Action','Method','Path','Status','IP Address','User Agent','Details'])
+    for row in rows:
+        writer.writerow([row['id'],row['created_at'],row['user_id'],row['actor_name'],row['actor_email'],row['actor_role'],row['action'],row['method'],row['path'],row['status_code'],row['ip_address'],row['user_agent'],row['details']])
+    return send_file(BytesIO(output.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='joy-university-audit-logs.csv')
 
 # Initialize on import as well as when run directly, so WSGI/Gunicorn deployments are ready.
 init_db()
