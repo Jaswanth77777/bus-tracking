@@ -23,7 +23,9 @@ elif os.environ.get('VERCEL'):
 else:
     DB = os.path.join(BASE, 'joy_bus_tracker.db')
 app = Flask(__name__)
-app.secret_key = os.environ.get('JOY_BUS_SECRET') or secrets.token_hex(32)
+app.secret_key = os.environ.get('JOY_BUS_SECRET') or ('development-only-change-me' if not os.environ.get('VERCEL') else None)
+if not app.secret_key:
+    raise RuntimeError('JOY_BUS_SECRET must be configured in Vercel for secure, stable sessions.')
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE=os.environ.get('SESSION_COOKIE_SAMESITE','Lax'),
     SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE','0') == '1',
@@ -104,7 +106,7 @@ def inject_template_security(): return {'csrf_token': csrf_token()}
 
 @app.before_request
 def protect_mutations():
-    if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in ('/api/login','/api/logout','/api/register/student'):
+    if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in ('/api/login','/api/logout'):
         token = request.headers.get('X-CSRF-Token')
         if not token or not secrets.compare_digest(token, session.get('csrf_token','')):
             return jsonify(ok=False,error='CSRF validation failed'), 403
@@ -196,9 +198,14 @@ def init_db():
     c.execute("UPDATE buses SET status='RUNNING' WHERE status IS NULL OR status=''")
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
+    if os.environ.get('VERCEL'):
+        # Production fleet markers must come from actual device GPS only.
+        c.execute("UPDATE buses SET simulated=0, manual_until=0")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
-    for n,e,p,r,u in [('System Admin','admin@joyuniversity.edu','Admin@123','admin','ADM001'),('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001')]:
-        c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),'%s'%r,u,1,now(),now()))
+    # Only seed public demo credentials when explicitly enabled for local development.
+    if os.environ.get('JOY_ENABLE_DEMO_DATA') == '1' and not os.environ.get('VERCEL'):
+        for n,e,p,r,u in [('System Admin','admin@joyuniversity.edu','Admin@123','admin','ADM001'),('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001')]:
+            c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),'%s'%r,u,1,now(),now()))
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
     for r in c.execute("SELECT id FROM users WHERE role='student'").fetchall(): c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(r['id'],now()))
@@ -271,7 +278,7 @@ def bus_payload(row):
     if manual:
         lat,lon=b['last_lat'],b['last_lon']; speed=b.get('last_speed') or 0
         heading=b.get('last_heading') or 0; accuracy=b.get('last_accuracy'); gps='LIVE GPS'
-    elif demo_path and b.get('simulated'):
+    elif demo_path and b.get('simulated') and not os.environ.get('VERCEL'): 
         x,z,heading,progress=demo_state(number)
         lat=CAMPUS['lat']+z*.004; lon=CAMPUS['lon']+x*.004
         speed=28+(b['id']%5)*3; accuracy=None; gps='DEMO GPS'
@@ -387,14 +394,7 @@ def logout(): session.clear(); return jsonify(ok=True)
 
 @app.post('/api/register/student')
 def register_student():
-    d=request.get_json() or {}; name=d.get('name','').strip(); email=d.get('email','').strip().lower(); password=d.get('password','')
-    if not name or '@' not in email or len(password)<8:return jsonify(ok=False,error='Name, email and 8+ character password required'),400
-    c=db()
-    try:
-        n=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1; uid=f"JOY-ST-{datetime.now().year}-{n:04d}"
-        c.execute('INSERT INTO users(name,email,password,role,uid,created_at) VALUES(?,?,?,?,?,?)',(name,email,generate_password_hash(password),'student',uid,now())); c.commit()
-    except sqlite3.IntegrityError:c.close(); return jsonify(ok=False,error='Email already registered'),400
-    c.close(); return jsonify(ok=True,uid=uid)
+    return jsonify(ok=False,error='Public student registration is disabled. Contact the JOY University transport administrator for your login credentials.'),403
 
 @app.get('/api/buses')
 def buses():
@@ -416,7 +416,7 @@ def bus_detail(bus_id):
     return jsonify(ok=True,bus=bus_payload(r))
 
 @app.post('/api/gps')
-@auth(['driver','admin'])
+@auth(['driver'])
 def gps():
     d=request.get_json() or {}
     try:
@@ -428,12 +428,9 @@ def gps():
     if u['role']=='driver':
         r=assigned_bus_for_driver(c,u['id']); bid=r['id'] if r else None
         if not bid:c.close();return jsonify(ok=False,error='No bus assigned to this driver'),400
-    else:
-        try: bid=int(d.get('bus_id'))
-        except (TypeError,ValueError): c.close();return jsonify(ok=False,error='Admin bus_id required'),400
-        r=c.execute('SELECT * FROM buses WHERE id=? AND enabled=1',(bid,)).fetchone()
-        if not r:c.close();return jsonify(ok=False,error='Bus not found'),404
-    trip=active_trip(c,bid,u['id']) if u['role']=='driver' else c.execute("SELECT * FROM trips WHERE bus_id=? AND status='ACTIVE' ORDER BY id DESC LIMIT 1",(bid,)).fetchone()
+    trip=active_trip(c,bid,u['id'])
+    if not trip:
+        c.close(); return jsonify(ok=False,error='Start an active trip before sharing GPS'),409
     t=time.time(); stamp=now()
     c.execute("UPDATE buses SET last_lat=?,last_lon=?,last_speed=?,last_heading=?,last_accuracy=?,last_gps=?,manual_until=?,simulated=0,status='RUNNING',updated_at=? WHERE id=?",(lat,lon,speed,heading,accuracy,t,t+GPS_TIMEOUT_SECONDS*2,stamp,bid))
     c.execute('INSERT INTO gps_locations(bus_id,driver_id,trip_id,lat,lon,speed,heading,accuracy,recorded_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(bid,u['id'],trip['id'] if trip else None,lat,lon,speed,heading,accuracy,stamp,stamp))
@@ -444,7 +441,7 @@ def gps():
 @auth(['driver'])
 def gps_stop():
     u=current_user(); c=db(); b=assigned_bus_for_driver(c,u['id'])
-    if b:c.execute("UPDATE buses SET manual_until=0,simulated=1,status='STOPPED',updated_at=? WHERE id=?",(now(),b['id']))
+    if b:c.execute("UPDATE buses SET manual_until=0,simulated=0,status='STOPPED',updated_at=? WHERE id=?",(now(),b['id']))
     c.commit(); c.close(); return jsonify(ok=True)
 
 @app.post('/api/emergency')
