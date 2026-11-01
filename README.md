@@ -25,13 +25,11 @@ This upgrade preserves the existing road map, smooth demo bus movement, bus sele
 - Optional Socket.IO real-time events with polling fallback
 - No campus photo or 3D campus view
 
-## Demo accounts
+## Account access
 
-- Admin: `admin@joyuniversity.edu` / `Admin@123`
-- Driver: `driver@joyuniversity.edu` / `Driver@123`
-- Student: `student@joyuniversity.edu` / `Student@123`
+Public demo credentials and public self-registration are not provided. An authorised JOY University administrator creates student and driver accounts and issues each user a university email/ID and a private password. Use the Student, Driver or Admin quick-access button on the sign-in page to select your role. After a successful sign-in, the browser can remember that role's last-used email/ID on that device; passwords are never stored by this feature. The browser or password manager may offer its own private password autofill.
 
-Change all demo passwords before production use.
+For an initial deployment, provision the first administrator securely through your deployment's private setup process. Do not publish administrator passwords in this repository or on the login page.
 
 ## Local setup
 
