@@ -197,7 +197,7 @@ def init_db():
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
-    for n,e,p,r,u in [('System Admin','admin@joyuniversity.edu',os.environ.get('JOY_INITIAL_ADMIN_PASSWORD') or secrets.token_urlsafe(24),'admin','ADM001'),('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001'),('Demo Administrator','demo-admin@joyuniversity.edu','JoyDemoAdmin!26','admin','DEMOADM')]:
+    for n,e,p,r,u in [('System Admin','admin@joyuniversity.edu','Admin@123','admin','ADM001'),('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001'),('Demo Administrator','demo-admin@joyuniversity.edu','JoyDemoAdmin!26','admin','DEMOADM')]:
         c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),'%s'%r,u,1,now(),now()))
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
