@@ -228,7 +228,8 @@ def init_db():
     # Public demo accounts are no longer provisioned. University users are created by an authenticated administrator.
     # Preserve the initial administrator account on first setup without resetting
     # an administrator's password on every application startup.
-    c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',('System Admin','admin@joyuniversity.edu',generate_password_hash('Admin@123'),'admin','ADM001',1,now(),now()))
+    initial_admin_password=os.environ.get('JOY_ADMIN_INITIAL_PASSWORD','').strip() or secrets.token_urlsafe(18)
+    c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',('System Admin','admin@joyuniversity.edu',generate_password_hash(initial_admin_password),'admin','ADM001',1,now(),now()))
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
     for r in c.execute("SELECT id FROM users WHERE role='student'").fetchall(): c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(r['id'],now()))
@@ -431,6 +432,30 @@ def login():
     u=dict(r)
     u.pop('password',None)
     return jsonify(ok=True,user=u)
+
+@app.post('/api/admin/password-recovery')
+def admin_password_recovery():
+    # Emergency recovery is disabled unless a private deployment secret is configured.
+    recovery_token=os.environ.get('JOY_ADMIN_RECOVERY_TOKEN','')
+    d=request.get_json() or {}
+    supplied=str(d.get('recovery_token') or '')
+    identity=str(d.get('identity') or '').strip().lower()
+    new_password=str(d.get('new_password') or '')
+    if not recovery_token:
+        return jsonify(ok=False,error='Administrator recovery is not enabled. Configure JOY_ADMIN_RECOVERY_TOKEN privately in deployment settings.'),503
+    if not supplied or not secrets.compare_digest(supplied,recovery_token):
+        return jsonify(ok=False,error='Invalid recovery authorization'),403
+    if len(new_password)<12:
+        return jsonify(ok=False,error='New administrator password must be at least 12 characters'),400
+    c=db()
+    user=c.execute("SELECT id FROM users WHERE role='admin' AND (lower(email)=? OR lower(uid)=?)",(identity,identity)).fetchone()
+    if not user:
+        c.close()
+        return jsonify(ok=False,error='Administrator account not found'),404
+    c.execute('UPDATE users SET password=?,updated_at=? WHERE id=?',(generate_password_hash(new_password),now(),user['id']))
+    c.commit()
+    c.close()
+    return jsonify(ok=True,message='Administrator password updated. Remove or rotate JOY_ADMIN_RECOVERY_TOKEN in deployment settings now.')
 
 @app.post('/api/logout')
 def logout(): session.clear(); return jsonify(ok=True)
