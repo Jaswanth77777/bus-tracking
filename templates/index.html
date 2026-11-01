@@ -676,7 +676,7 @@ async function adminPage(section='overview'){
    settings:['Settings & permissions','Review administrator access and system information.'],
    exports:['Export records','Download student, driver, trip, attendance, complaint, emergency and maintenance records as CSV files for Excel.']
   };
-  const nav=Object.keys(items).map(k=>'<button class="joy-admin-nav '+(section===k?'active':'')+'" onclick="adminPage(\''+k+'\')"><span>'+({overview:'▦',students:'♙',drivers:'♧',buses:'▣',routes:'⌖',assignments:'⇄',trips:'◷',attendance:'✓',complaints:'☷',emergencies:'⚠',maintenance:'⚙',admins:'♙'}[k])+'</span>'+items[k][0]+'</button>').join('');
+  const nav=Object.keys(items).map(k=>'<button class="joy-admin-nav '+(section===k?'active':'')+'" onclick="adminPage(\''+k+'\')"><span>'+({overview:'▦',students:'♙',drivers:'♧',buses:'▣',routes:'⌖',assignments:'⇄',trips:'◷',attendance:'✓',complaints:'☷',emergencies:'⚠',maintenance:'⚙',admins:'♙',settings:'⚙',exports:'⇩'}[k])+'</span>'+items[k][0]+'</button>').join('');
   const stat=(label,value,sub='')=>'<div class="joy-admin-stat"><span>'+label+'</span><b>'+value+'</b><small>'+sub+'</small></div>';
   const table=(headers,rows)=>'<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+headers.length+'" class="muted">No records available.</td></tr>')+'</tbody></table></div>';
   const sectionHeader='<div class="joy-admin-heading"><div><div class="joy-admin-eyebrow">JOY UNIVERSITY • CONTROL CENTER</div><h1>'+items[section][0]+'</h1><p>'+items[section][1]+'</p></div><div class="actions"><button class="btn" onclick="adminCache=null;adminPage(\''+section+'\')">↻ REFRESH</button><button class="btn primary" onclick="openView(\'fleet\')">LIVE BUS MAP</button></div></div>';
@@ -717,13 +717,26 @@ function adminCsv(name,rows){
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='joy-university-'+name+'-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 function adminExport(key){
- if(!adminCache)return;
- const map={students:['Name','University ID','Email','Active'],drivers:['Name','University ID','Email','Active'],trips:['ID','Bus','Driver','Status','Started','Ended'],attendance:['Student','Bus','Stop','Boarded at'],complaints:['ID','Student','Bus','Subject','Message','Status','Created'],emergencies:['ID','Bus','Message','Status','Created'],maintenance:['Bus','Issue','Status','Created']};
- const data={students:adminCache.users.filter(x=>x.role==='student'),drivers:adminCache.drivers,trips:adminCache.trips,attendance:adminCache.attendance,complaints:adminCache.complaints,emergencies:adminCache.emergencies,maintenance:adminCache.maintenance}[key]||[];
- const fields={students:['name','uid','email','active'],drivers:['name','uid','email','active'],trips:['id','bus_number','driver_name','status','started_at','ended_at'],attendance:['user_name','bus_number','stop_name','boarded_at'],complaints:['id','user_name','bus_number','subject','message','status','created_at'],emergencies:['id','bus_number','message','status','created_at'],maintenance:['bus_number','issue','status','created_at']}[key];
- adminCsv(key,[map[key],...data.map(x=>fields.map(k=>x[k]))]);
+ if(!adminCache)return toast('Admin data is not loaded. Refresh the dashboard first.');
+ const d=adminCache;
+ const users=(d.users||[]),spec={
+  students:{head:['Name','University ID','Email','Active'],rows:users.filter(x=>x.role==='student'),fields:['name','uid','email','active']},
+  drivers:{head:['Name','University ID','Email','Active'],rows:d.drivers||[],fields:['name','uid','email','active']},
+  admins:{head:['Name','Admin ID','Email','Active'],rows:users.filter(x=>x.role==='admin'),fields:['name','uid','email','active']},
+  buses:{head:['Bus','Route','Capacity','Status','Enabled'],rows:d.fleet||[],fields:['number','route','capacity','status','enabled']},
+  routes:{head:['Route code','Route name','Active'],rows:d.routes||[],fields:['code','name','active']},
+  assignments:{head:['Driver','Bus','Route','Active'],rows:d.assignments||[],fields:['driver_name','bus_number','route_name','active']},
+  trips:{head:['ID','Bus','Driver','Status','Started','Ended'],rows:d.trips||[],fields:['id','bus_number','driver_name','status','started_at','ended_at']},
+  attendance:{head:['Student','Bus','Stop','Boarded at'],rows:d.attendance||[],fields:['user_name','bus_number','stop_name','boarded_at']},
+  complaints:{head:['ID','Student','Bus','Subject','Message','Status','Created'],rows:d.complaints||[],fields:['id','user_name','bus_number','subject','message','status','created_at']},
+  emergencies:{head:['ID','Bus','Message','Status','Created'],rows:d.emergencies||[],fields:['id','bus_number','message','status','created_at']},
+  maintenance:{head:['Bus','Issue','Status','Created'],rows:d.maintenance||[],fields:['bus_number','issue','status','created_at']},
+  stops:{head:['Route ID','Stop name','Order'],rows:d.stops||[],fields:['route_id','name','stop_order']}
+ };
+ const s=spec[key];if(!s)return toast('This record type cannot be exported.');
+ adminCsv(key,[s.head,...s.rows.map(x=>s.fields.map(k=>x[k]))]);
 }
-function adminExportAll(){['students','drivers','trips','attendance','complaints','emergencies','maintenance'].forEach((k,i)=>setTimeout(()=>adminExport(k),i*250));}
+function adminExportAll(){['students','drivers','admins','buses','routes','stops','assignments','trips','attendance','complaints','emergencies','maintenance'].forEach((k,i)=>setTimeout(()=>adminExport(k),i*350));}
 async function importStudentsExcel(){const input=$('#studentImportFile'),file=input&&input.files[0];if(!file)return toast('Choose an Excel .xlsx file first');const data=new FormData();data.append('file',file);try{const res=await fetch('/api/admin/import-students',{method:'POST',body:data,credentials:'same-origin'});const j=await res.json();if(!res.ok||!j.ok)throw new Error(j.error||'Import failed');let msg='Imported '+j.created+' students; skipped '+j.skipped+'.';if(j.errors&&j.errors.length)msg+=' '+j.errors.length+' invalid rows.';$('#studentImportResult').textContent=msg;toast('Excel import complete');adminPage()}catch(e){toast(e.message)}}
 async function createCoreUser(role){
  const p=role==="student"?"newStudent":"newDriver";
