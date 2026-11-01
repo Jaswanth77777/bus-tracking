@@ -216,7 +216,34 @@ body{background:radial-gradient(ellipse at 12% 0,#eee7fa 0,transparent 42%),#f7f
 .joy-admin-content select.input option{background:#fff;color:#29213a}
 @media(max-width:1000px){.joy-admin-sidebar{min-height:0}.joy-admin-navlist{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:650px){.joy-admin-navlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style></head>
+</style>
+<style id="joy-admin-contrast-final">
+/* Accessible royal-purple admin dashboard palette */
+.joy-admin-sidebar{background:linear-gradient(180deg,#fff 0%,#f5effc 100%)!important;border:1px solid #e4d7f2!important;box-shadow:0 12px 28px rgba(49,27,78,.08)!important}
+.joy-admin-brand{color:#33204d!important;border-color:#e4d7f2!important}
+.joy-admin-brand span,.joy-admin-nav span{color:#7040ad!important}
+.joy-admin-brand small,.joy-admin-sidefoot{color:#6e607e!important}
+.joy-admin-nav{color:#49375f!important}
+.joy-admin-nav:hover,.joy-admin-nav.active{background:#e9def7!important;border-color:#d3bce9!important;color:#43216e!important}
+.joy-admin-heading{background:linear-gradient(120deg,#fff 0%,#f2eafa 100%)!important;border:1px solid #e3d5f0!important;box-shadow:0 8px 24px rgba(49,27,78,.06)!important}
+.joy-admin-heading h1{color:#35204f!important}
+.joy-admin-heading p{color:#665777!important}
+.joy-admin-eyebrow{color:#7040ad!important}
+.joy-admin-stat{background:linear-gradient(145deg,#fff 0%,#f7f2fc 100%)!important;border:1px solid #e1d4ee!important;box-shadow:0 6px 18px rgba(49,27,78,.06)!important}
+.joy-admin-stat span,.joy-admin-stat small{color:#675778!important}
+.joy-admin-stat b{color:#6336a5!important}
+.joy-admin-content .panel{background:#fff!important;color:#38264f!important;border:1px solid #e6dced!important;box-shadow:0 5px 18px rgba(49,27,78,.035)!important}
+.joy-admin-content h2,.joy-admin-content h3{color:#38224f!important}
+.joy-admin-content p,.joy-admin-content .muted,.joy-admin-content .small{color:#6b5c7b!important}
+.joy-admin-table th{color:#7040ad!important;background:#f7f2fc!important;border-color:#e4d8ef!important}
+.joy-admin-table td{color:#49395c!important;border-color:#e9e0f0!important}
+.joy-admin-table tr:hover td{background:#faf7fd!important}
+.joy-admin-content .notice{background:#f2eafa!important;border:1px solid #dfcdec!important;color:#4c3268!important}
+.joy-admin-content .badge{background:#eee5f8!important;color:#56318c!important;border:1px solid #ddc9ef!important}
+.joy-admin-content .input{background:#fff!important;color:#352744!important;border:1px solid #d8c9e6!important}
+.joy-admin-content .btn.primary{background:linear-gradient(135deg,#7545b5,#59308f)!important;color:#fff!important;border-color:#59308f!important}
+</style>
+</head>
 <body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
 <script>
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -531,7 +558,7 @@ async function adminPage(section='overview'){
   const demoTitle=demoItems[section]||demoItems.overview;
   const demoTable=(heads,rows)=>'<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   let demoBody='';
-  if(section==='overview')demoBody='<div class="joy-admin-stats"><div class="joy-admin-stat"><span>Students</span><b>Sample</b><small>Student accounts</small></div><div class="joy-admin-stat"><span>Drivers</span><b>Sample</b><small>Driver accounts</small></div><div class="joy-admin-stat"><span>Buses</span><b>Sample</b><small>Campus fleet</small></div><div class="joy-admin-stat"><span>Active trips</span><b>Sample</b><small>Live operations</small></div><div class="joy-admin-stat"><span>Complaints</span><b>Sample</b><small>Service desk</small></div><div class="joy-admin-stat"><span>Alerts</span><b>Sample</b><small>Safety monitoring</small></div></div><section class="panel pad"><h3>All administration modules</h3><p class="muted">Use the left navigation to preview each module in the JOY University transport management workspace.</p>'+demoTable(['Module','Included tools'],[['Accounts','Student and driver account management'],['Operations','Buses, routes, stops and assignments'],['Monitoring','Trips, GPS and attendance'],['Support & safety','Complaints, emergency alerts and maintenance'],['Administration','Settings, reports and data exports']])+'</section>';
+  if(section==='overview')demoBody='<div class="joy-admin-stats"><div class="joy-admin-stat"><span>Students</span><b>—</b><small>Demo preview · no live count</small></div><div class="joy-admin-stat"><span>Drivers</span><b>—</b><small>Demo preview · no live count</small></div><div class="joy-admin-stat"><span>Buses</span><b>—</b><small>Demo preview · no live count</small></div><div class="joy-admin-stat"><span>Active trips</span><b>—</b><small>Demo preview · no live count</small></div><div class="joy-admin-stat"><span>Complaints</span><b>—</b><small>Demo preview · no live count</small></div><div class="joy-admin-stat"><span>Alerts</span><b>—</b><small>Demo preview · no live count</small></div></div><section class="panel pad"><h3>All administration modules</h3><p class="muted">Use the left navigation to preview each module in the JOY University transport management workspace.</p>'+demoTable(['Module','Included tools'],[['Accounts','Student and driver account management'],['Operations','Buses, routes, stops and assignments'],['Monitoring','Trips, GPS and attendance'],['Support & safety','Complaints, emergency alerts and maintenance'],['Administration','Settings, reports and data exports']])+'</section>';
   else if(section==='students'||section==='drivers')demoBody='<section class="panel pad"><h3>'+demoTitle+'</h3><p class="muted">Create accounts, review account details and manage access in the live administrator workspace.</p>'+demoTable(['Name','University ID','Email','Account status'],[['Demo '+(section==='students'?'Student':'Driver'),'JOY-DEMO-001','sample@joyuniversity.edu','Sample only']])+'</section>';
   else if(section==='import')demoBody='<section class="panel pad"><h3>Bulk student import using Excel</h3><p>Upload a formatted .xlsx file to provision multiple student accounts in the live system.</p><button class="btn" disabled>DOWNLOAD EXCEL TEMPLATE</button> <button class="btn primary" disabled>IMPORT STUDENTS</button><p class="muted small">Import is disabled in the presentation-only demo.</p></section>';
   else if(section==='buses')demoBody='<section class="panel pad"><h3>Bus and fleet management</h3>'+demoTable(['Bus number','Route','GPS status','Availability'],[['JOY-DEMO-01','Sample route','Demo GPS','Sample'],['JOY-DEMO-02','Sample route','Demo GPS','Sample']])+'</section>';
