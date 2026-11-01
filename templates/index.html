@@ -500,10 +500,10 @@ async function adminPage(section='overview'){
  }
  try{
   if(!adminCache){
-   const [base,overview,complaints,emergencies,attendance,trips,maintenance,notifications]=await Promise.all([
-    api('/api/admin'),api('/api/admin/overview'),api('/api/complaints'),api('/api/emergencies'),api('/api/attendance'),api('/api/trips'),api('/api/maintenance'),api('/api/notifications')
+   const [base,overview,complaints,trips]=await Promise.all([
+    api('/api/admin'),api('/api/admin/overview'),api('/api/complaints'),api('/api/trips')
    ]);
-   adminCache={...base,overview,complaints:complaints.items||[],emergencies:emergencies.items||[],attendance:attendance.items||[],trips:trips.trips||trips.items||[],maintenance:maintenance.items||[],notifications:notifications.items||[]};
+   adminCache={...base,overview,complaints:complaints.items||base.complaints||[],emergencies:base.emergencies||[],attendance:base.attendance||[],trips:trips.trips||[],maintenance:base.maintenance||[],notifications:[]};
   }
   const d=adminCache,students=d.users.filter(x=>x.role==='student'),drivers=d.drivers||[],items={
    overview:['Dashboard overview','Live summary of campus transport operations.'],
