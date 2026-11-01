@@ -104,7 +104,7 @@ def inject_template_security(): return {'csrf_token': csrf_token()}
 
 @app.before_request
 def protect_mutations():
-    if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in ('/api/login','/api/logout','/api/register/student'):
+    if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in ('/api/login','/api/logout'):
         token = request.headers.get('X-CSRF-Token')
         if not token or not secrets.compare_digest(token, session.get('csrf_token','')):
             return jsonify(ok=False,error='CSRF validation failed'), 403
@@ -387,14 +387,9 @@ def logout(): session.clear(); return jsonify(ok=True)
 
 @app.post('/api/register/student')
 def register_student():
-    d=request.get_json() or {}; name=d.get('name','').strip(); email=d.get('email','').strip().lower(); password=d.get('password','')
-    if not name or '@' not in email or len(password)<8:return jsonify(ok=False,error='Name, email and 8+ character password required'),400
-    c=db()
-    try:
-        n=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1; uid=f"JOY-ST-{datetime.now().year}-{n:04d}"
-        c.execute('INSERT INTO users(name,email,password,role,uid,created_at) VALUES(?,?,?,?,?,?)',(name,email,generate_password_hash(password),'student',uid,now())); c.commit()
-    except sqlite3.IntegrityError:c.close(); return jsonify(ok=False,error='Email already registered'),400
-    c.close(); return jsonify(ok=True,uid=uid)
+    # Public self-registration is intentionally disabled. Accounts are provisioned
+    # by an authenticated administrator through /api/admin/users.
+    return jsonify(ok=False,error='Student self-registration is disabled. Contact the university administrator for your login credentials.'),403
 
 @app.get('/api/buses')
 def buses():
