@@ -440,9 +440,46 @@ def logout(): session.clear(); return jsonify(ok=True)
 
 @app.post('/api/register/student')
 def register_student():
-    # Public self-registration is intentionally disabled. Accounts are provisioned
-    # by an authenticated administrator through /api/admin/users.
-    return jsonify(ok=False,error='Student self-registration is disabled. Contact the university administrator for your login credentials.'),403
+    # Public applications are limited to student/driver roles and remain inactive
+    # until an administrator approves them from the account directory.
+    d=request.get_json() or {}
+    name=str(d.get('name') or '').strip()
+    email=str(d.get('email') or '').strip().lower()
+    password=str(d.get('password') or '')
+    role=str(d.get('role') or 'student').strip().lower()
+    phone=str(d.get('phone') or '').strip()
+    if len(name)<2 or len(name)>100:
+        return jsonify(ok=False,error='Enter your full name (2–100 characters).'),400
+    if len(email)>254 or email.count('@')!=1 or '.' not in email.rsplit('@',1)[-1] or any(ch.isspace() for ch in email):
+        return jsonify(ok=False,error='Enter a valid email address.'),400
+    if len(password)<8 or len(password)>128:
+        return jsonify(ok=False,error='Password must be 8–128 characters.'),400
+    if role not in ('student','driver'):
+        return jsonify(ok=False,error='Only student and driver applications are accepted.'),403
+    c=db()
+    try:
+        if c.execute('SELECT 1 FROM users WHERE lower(email)=?',(email,)).fetchone():
+            c.close()
+            return jsonify(ok=False,error='An account with this email already exists. Contact the administrator if you need help.'),409
+        n=c.execute('SELECT COUNT(*) n FROM users WHERE role=?',(role,)).fetchone()['n']+1
+        prefix='JOY-ST' if role=='student' else 'DRV'
+        uid=f'{prefix}-{datetime.now().year}-{n:04d}'
+        cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
+            (name,email,generate_password_hash(password),role,uid,phone,0,now(),now()))
+        user_id=cur.lastrowid
+        if role=='student':
+            c.execute('INSERT INTO students(user_id,created_at) VALUES(?,?)',(user_id,now()))
+        else:
+            c.execute('INSERT INTO drivers(user_id,phone,created_at) VALUES(?,?,?)',(user_id,phone,now()))
+        c.commit()
+    except sqlite3.IntegrityError:
+        c.rollback(); c.close()
+        return jsonify(ok=False,error='An account with these details already exists.'),409
+    except Exception:
+        c.rollback(); c.close()
+        raise
+    c.close()
+    return jsonify(ok=True,message='Application submitted. Your account will be available after administrator approval.',uid=uid),201
 
 @app.get('/api/buses')
 def buses():
