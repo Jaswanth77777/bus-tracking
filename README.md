@@ -46,7 +46,7 @@ For an initial deployment, provision the first administrator securely through yo
 
 3. Install packages:
    `pip install -r requirements.txt`
-4. Copy `.env.example` to `.env` and set a strong `JOY_BUS_SECRET`.
+4. Copy `.env.example` to `.env` and replace `JOY_BUS_SECRET` with a long random value. Keep `SESSION_COOKIE_SECURE=0` for local `http://127.0.0.1` development; secure cookies are enabled for the deployed HTTPS site by setting `SESSION_COOKIE_SECURE=1` in Vercel.
 5. Start the application:
    `python app.py`
 6. Open `http://127.0.0.1:5000`.
@@ -83,6 +83,8 @@ This repository is Vercel-ready as a Flask application. Vercel now supports Flas
 4. Deploy. Vercel will install `requirements.txt` and serve `app.py` as the Flask application.
 
 ### Important: SQLite on Vercel
+
+**Do not store real student, attendance, GPS, emergency or transport records in the Vercel demo database.** The current codebase uses SQLite and does not yet contain a PostgreSQL adapter or a verified persistent database migration. Do not set `JOY_BUS_DB` to a PostgreSQL connection URL; the application currently passes this value to `sqlite3.connect()`.
 
 Vercel deployments use an immutable filesystem. When `VERCEL=1`, this app therefore uses `/tmp/joy_bus_tracker.db` so the application can start and operate as a demo. **SQLite data in `/tmp` is not durable and can disappear when the serverless instance is recycled; it is not suitable for production fleet data.** For persistent users, buses, GPS history, complaints and attendance, migrate the database to PostgreSQL or another managed database and set the application to use that database.
 
