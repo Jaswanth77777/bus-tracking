@@ -440,8 +440,7 @@ def logout(): session.clear(); return jsonify(ok=True)
 
 @app.post('/api/register/student')
 def register_student():
-    # Public applications are limited to student/driver roles and remain inactive
-    # until an administrator approves them from the account directory.
+    # Public applications remain inactive until an existing administrator approves them.
     d=request.get_json() or {}
     name=str(d.get('name') or '').strip()
     email=str(d.get('email') or '').strip().lower()
@@ -454,22 +453,22 @@ def register_student():
         return jsonify(ok=False,error='Enter a valid email address.'),400
     if len(password)<8 or len(password)>128:
         return jsonify(ok=False,error='Password must be 8–128 characters.'),400
-    if role not in ('student','driver'):
-        return jsonify(ok=False,error='Only student and driver applications are accepted.'),403
+    if role not in ('student','driver','admin'):
+        return jsonify(ok=False,error='Choose student, driver, or admin.'),403
     c=db()
     try:
         if c.execute('SELECT 1 FROM users WHERE lower(email)=?',(email,)).fetchone():
             c.close()
             return jsonify(ok=False,error='An account with this email already exists. Contact the administrator if you need help.'),409
         n=c.execute('SELECT COUNT(*) n FROM users WHERE role=?',(role,)).fetchone()['n']+1
-        prefix='JOY-ST' if role=='student' else 'DRV'
+        prefix={'student':'JOY-ST','driver':'DRV','admin':'ADM'}[role]
         uid=f'{prefix}-{datetime.now().year}-{n:04d}'
         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
             (name,email,generate_password_hash(password),role,uid,phone,0,now(),now()))
         user_id=cur.lastrowid
         if role=='student':
             c.execute('INSERT INTO students(user_id,created_at) VALUES(?,?)',(user_id,now()))
-        else:
+        elif role=='driver':
             c.execute('INSERT INTO drivers(user_id,phone,created_at) VALUES(?,?,?)',(user_id,phone,now()))
         c.commit()
     except sqlite3.IntegrityError:
