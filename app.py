@@ -393,9 +393,38 @@ def profile_update():
 
 @app.post('/api/login')
 def login():
-    d=request.get_json() or {}; identity=d.get('identity','').strip().lower(); password=d.get('password',''); c=db(); r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone(); c.close()
-    if not r or not r['active'] or not check_password_hash(r['password'],password):return jsonify(ok=False,error='Invalid login details'),401
-    session.clear(); session['user_id']=r['id']; csrf_token(); u=dict(r); u.pop('password',None); return jsonify(ok=True,user=u)
+    d=request.get_json() or {}
+    identity=str(d.get('identity') or '').strip().lower()
+    password=d.get('password') or ''
+    c=db()
+    # Repair the three published demo accounts at sign-in time as well as at
+    # startup. This covers fresh/isolated Vercel serverless database instances.
+    demo_accounts={
+        'student@joyuniversity.edu':('Demo Student','Student@123','student','JOY001'),
+        'driver@joyuniversity.edu':('Demo Driver','Driver@123','driver','DRV001'),
+        'demo-admin@joyuniversity.edu':('Demo Administrator','JoyDemoAdmin!26','admin','DEMOADM'),
+    }
+    demo=demo_accounts.get(identity)
+    if demo and password==demo[1]:
+        name, demo_password, role, uid=demo
+        existing=c.execute('SELECT id FROM users WHERE lower(email)=?',(identity,)).fetchone()
+        if existing:
+            c.execute('UPDATE users SET name=?,password=?,role=?,uid=?,active=1,updated_at=? WHERE id=?',
+                      (name,generate_password_hash(demo_password),role,uid,now(),existing['id']))
+        else:
+            c.execute('INSERT INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
+                      (name,identity,generate_password_hash(demo_password),role,uid,1,now(),now()))
+        c.commit()
+    r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone()
+    c.close()
+    if not r or not r['active'] or not check_password_hash(r['password'],password):
+        return jsonify(ok=False,error='Invalid email/ID or password. Check the account type and try again.'),401
+    session.clear()
+    session['user_id']=r['id']
+    csrf_token()
+    u=dict(r)
+    u.pop('password',None)
+    return jsonify(ok=True,user=u)
 
 @app.post('/api/logout')
 def logout(): session.clear(); return jsonify(ok=True)
