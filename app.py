@@ -198,11 +198,9 @@ def init_db():
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
-    # Public demo accounts are no longer provisioned. University users are created by an authenticated administrator.
-    # Preserve the initial administrator account on first setup without resetting
-    # an administrator's password on every application startup.
-    initial_admin_password=os.environ.get('JOY_ADMIN_INITIAL_PASSWORD','').strip() or secrets.token_urlsafe(18)
-    c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',('System Admin','admin@joyuniversity.edu',generate_password_hash(initial_admin_password),'admin','ADM001',1,now(),now()))
+    # Do not create an administrator with an undisclosed random password.
+    # The first administrator is provisioned only through the explicit,
+    # private JOY_ADMIN_BOOTSTRAP_EMAIL deployment setting during registration.
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
     for r in c.execute("SELECT id FROM users WHERE role='student'").fetchall(): c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(r['id'],now()))
@@ -399,7 +397,9 @@ def login():
         return jsonify(ok=False,error='Public demo accounts have been retired. Use credentials issued by the JOY University administrator.'),403
     r=c.execute('SELECT * FROM users WHERE lower(email)=? OR lower(uid)=?',(identity,identity)).fetchone()
     c.close()
-    if not r or not r['active'] or not check_password_hash(r['password'],password):
+    if r and not r['active'] and check_password_hash(r['password'],password):
+        return jsonify(ok=False,error='Your account application is pending administrator approval. Contact the JOY University administrator.'),403
+    if not r or not check_password_hash(r['password'],password):
         return jsonify(ok=False,error='Invalid email/ID or password. Check the account type and try again.'),401
     if requested_role and r['role'] != requested_role:
         return jsonify(ok=False,error='This account does not match the selected account type.'),403
@@ -463,8 +463,13 @@ def register_student():
         n=c.execute('SELECT COUNT(*) n FROM users WHERE role=?',(role,)).fetchone()['n']+1
         prefix={'student':'JOY-ST','driver':'DRV','admin':'ADM'}[role]
         uid=f'{prefix}-{datetime.now().year}-{n:04d}'
+        # Only the email explicitly configured by the owner can bootstrap the
+        # first active administrator. All other public admin applications wait
+        # for approval by an already-authorized administrator.
+        bootstrap_email=os.environ.get('JOY_ADMIN_BOOTSTRAP_EMAIL','').strip().lower()
+        active=1 if role=='admin' and bootstrap_email and email==bootstrap_email and not c.execute("SELECT 1 FROM users WHERE role='admin' AND active=1 LIMIT 1").fetchone() else 0
         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
-            (name,email,generate_password_hash(password),role,uid,phone,0,now(),now()))
+            (name,email,generate_password_hash(password),role,uid,phone,active,now(),now()))
         user_id=cur.lastrowid
         if role=='student':
             c.execute('INSERT INTO students(user_id,created_at) VALUES(?,?)',(user_id,now()))
