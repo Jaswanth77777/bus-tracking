@@ -656,10 +656,9 @@ async function adminPage(section='overview'){
    complaints:['Complaints & service desk','Track student and staff service requests.'],
    emergencies:['Emergency alerts','Review and update safety alerts.'],
    maintenance:['Maintenance','Review reported bus issues.'],
-   settings:['Settings & permissions','Review administrator access and system information.'],
-   audit:['Audit & activity logs','Search security events and administrator activity across the system.']
+   settings:['Settings & permissions','Review administrator access and system information.']
   };
-  const nav=Object.keys(items).map(k=>'<button class="joy-admin-nav '+(section===k?'active':'')+'" onclick="adminPage(\''+k+'\')"><span>'+({overview:'▦',students:'♙',drivers:'♧',buses:'▣',routes:'⌖',assignments:'⇄',trips:'◷',attendance:'✓',complaints:'☷',emergencies:'⚠',maintenance:'⚙',settings:'⚙',audit:'▤'}[k])+'</span>'+items[k][0]+'</button>').join('');
+  const nav=Object.keys(items).map(k=>'<button class="joy-admin-nav '+(section===k?'active':'')+'" onclick="adminPage(\''+k+'\')"><span>'+({overview:'▦',students:'♙',drivers:'♧',buses:'▣',routes:'⌖',assignments:'⇄',trips:'◷',attendance:'✓',complaints:'☷',emergencies:'⚠',maintenance:'⚙',settings:'⚙'}[k])+'</span>'+items[k][0]+'</button>').join('');
   const stat=(label,value,sub='')=>'<div class="joy-admin-stat"><span>'+label+'</span><b>'+value+'</b><small>'+sub+'</small></div>';
   const table=(headers,rows)=>'<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+headers.length+'" class="muted">No records available.</td></tr>')+'</tbody></table></div>';
   const sectionHeader='<div class="joy-admin-heading"><div><div class="joy-admin-eyebrow">JOY UNIVERSITY • CONTROL CENTER</div><h1>'+items[section][0]+'</h1><p>'+items[section][1]+'</p></div><div class="actions"><button class="btn" onclick="adminCache=null;adminPage(\''+section+'\')">↻ REFRESH</button><button class="btn primary" onclick="openView(\'fleet\')">LIVE BUS MAP</button></div></div>';
@@ -685,25 +684,11 @@ async function adminPage(section='overview'){
    body='<section class="panel pad"><div class="row"><h3>Emergency alerts</h3><button class="btn" onclick="adminExport(\'emergencies\')">EXPORT</button></div>'+table(['ID','Bus','Message','Status','Created','Action'],d.emergencies.map(x=>[esc(x.id),esc(x.bus_number||''),esc(x.message||''),esc(x.status||''),esc(x.created_at||''),'<select class="input" onchange="updateEmergency('+x.id+',this.value)"><option>ACTIVE</option><option>ACKNOWLEDGED</option><option>RESOLVED</option></select>']))+'</section>';
   }else if(section==='maintenance'){
    body='<section class="panel pad"><div class="row"><h3>Maintenance reports</h3><button class="btn" onclick="adminExport(\'maintenance\')">EXPORT</button></div>'+table(['Bus','Issue','Status','Reported'],d.maintenance.map(x=>[esc(x.bus_number||''),esc(x.issue||''),esc(x.status||''),esc(x.created_at||'')]))+'</section>';
-  }else if(section==='audit'){
-   let logs=[];
-   try{const a=await api('/api/admin/audit-logs?limit=200');logs=a.items||[];window.joyAuditTotal=a.total||0}catch(e){toast(e.message)}
-   body='<section class="panel pad"><div class="row"><div><h3>System-wide audit trail</h3><p class="muted">Login attempts and write actions across students, drivers, fleet, routes, trips, attendance, complaints, emergencies and maintenance.</p></div><a class="btn primary" href="/api/admin/audit-logs/export.csv">EXPORT CSV</a></div><div class="joy-admin-formgrid"><input id="auditQuery" class="input" placeholder="Search user, email, endpoint or IP"><select id="auditRole" class="input"><option value="">All roles</option><option>admin</option><option>transport_manager</option><option>security</option><option>driver</option><option>student</option></select><select id="auditAction" class="input"><option value="">All actions</option><option>LOGIN_SUCCESS</option><option>LOGIN_FAILED</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div><button class="btn" onclick="loadAuditLogs()">SEARCH LOGS</button><span class="muted small" style="margin-left:10px">Total records: '+(window.joyAuditTotal||0)+'</span><div id="auditResults">'+table(['Time (UTC)','User','Role','Action','Endpoint','Status','IP'],logs.map(x=>[esc(x.created_at),esc(x.actor_name||'Unauthenticated'),esc(x.actor_role||'—'),esc(x.action),esc(x.path),esc(x.status_code),esc(x.ip_address||'')]))+'</div></section>';
   }else{
    body='<div class="joy-admin-cards"><section class="panel pad"><h3>Administrator account</h3><p>Signed in as <b>'+esc(me.name)+'</b></p><p class="muted">'+esc(me.email)+'</p><p>Role: <b>'+esc(me.role)+'</b></p></section><section class="panel pad"><h3>System information</h3>'+table(['Metric','Value'],[['Registered users',d.users.length],['Routes',d.routes.length],['Bus stops',d.stops.length],['Fleet vehicles',d.fleet.length],['Active trips',d.overview.active_trips||0]])+'</section></div><section class="panel pad"><h3>Data export</h3><p class="muted">Download the current admin data as CSV files that open in Excel.</p><button class="btn primary" onclick="adminExportAll()">EXPORT ALL DATA</button></section>';
   }
   $("#main").innerHTML='<div class="joy-admin-shell"><aside class="joy-admin-sidebar"><div class="joy-admin-brand">JOY <span>ADMIN</span><small>Transport management</small></div><div class="joy-admin-navlist">'+nav+'</div><div class="joy-admin-sidefoot">Secure administrator workspace<br><span>JOY University College</span></div></aside><section class="joy-admin-content">'+sectionHeader+body+'</section></div>';
  }catch(e){toast(e.message);$("#main").innerHTML='<section class="panel pad"><h2>Admin data could not be loaded</h2><p class="muted">'+esc(e.message)+'</p><button class="btn primary" onclick="adminCache=null;adminPage(\''+section+'\')">TRY AGAIN</button></section>'}
-}
-async function loadAuditLogs(){
- try{
-  const q=encodeURIComponent($('#auditQuery')?.value||''),role=encodeURIComponent($('#auditRole')?.value||''),action=encodeURIComponent($('#auditAction')?.value||'');
-  const a=await api('/api/admin/audit-logs?limit=200&q='+q+'&role='+role+'&action='+action);
-  const escv=v=>esc(v??'');
-  const rows=(a.items||[]).map(x=>[escv(x.created_at),escv(x.actor_name||'Unauthenticated'),escv(x.actor_role||'—'),escv(x.action),escv(x.path),escv(x.status_code),escv(x.ip_address||'')]);
-  const headers=['Time (UTC)','User','Role','Action','Endpoint','Status','IP'];
-  $('#auditResults').innerHTML='<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="7">No audit records found.</td></tr>')+'</tbody></table></div>';
- }catch(e){toast(e.message)}
 }
 function adminCsv(name,rows){
  const quote=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
