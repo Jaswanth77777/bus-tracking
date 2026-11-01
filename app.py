@@ -391,6 +391,11 @@ def profile_update():
 
 @app.post('/api/login')
 def login():
+    # Vercel may run each request in a different serverless instance. A random
+    # per-instance Flask secret invalidates the signed session cookie between
+    # login and the next Admin API request. Require one stable private secret.
+    if os.environ.get('VERCEL') and not os.environ.get('JOY_BUS_SECRET'):
+        return jsonify(ok=False,error='Deployment setup required: add a permanent JOY_BUS_SECRET in Vercel Project Settings → Environment Variables, then redeploy. Do not use a random value generated at app startup.'),503
     d=request.get_json() or {}
     identity=str(d.get('identity') or '').strip().lower()
     password=d.get('password') or ''
