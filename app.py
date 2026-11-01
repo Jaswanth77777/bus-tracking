@@ -197,8 +197,17 @@ def init_db():
     c.execute("UPDATE buses SET capacity=45 WHERE capacity IS NULL")
     c.execute("UPDATE buses SET simulated=1 WHERE simulated IS NULL")
     c.execute("UPDATE buses SET enabled=1 WHERE enabled IS NULL")
-    for n,e,p,r,u in [('System Admin','admin@joyuniversity.edu','Admin@123','admin','ADM001'),('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001'),('Demo Administrator','demo-admin@joyuniversity.edu','JoyDemoAdmin!26','admin','DEMOADM')]:
-        c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),'%s'%r,u,1,now(),now()))
+    # Keep the published demo credentials synchronized with the demo accounts.
+    # INSERT OR IGNORE alone leaves an older password hash unchanged on existing DBs.
+    for n,e,p,r,u in [('Demo Driver','driver@joyuniversity.edu','Driver@123','driver','DRV001'),('Demo Student','student@joyuniversity.edu','Student@123','student','JOY001'),('Demo Administrator','demo-admin@joyuniversity.edu','JoyDemoAdmin!26','admin','DEMOADM')]:
+        existing=c.execute('SELECT id FROM users WHERE lower(email)=?',(e.lower(),)).fetchone()
+        if existing:
+            c.execute('UPDATE users SET name=?,password=?,role=?,uid=?,active=1,updated_at=? WHERE id=?',(n,generate_password_hash(p),r,u,now(),existing['id']))
+        else:
+            c.execute('INSERT INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(n,e,generate_password_hash(p),r,u,1,now(),now()))
+    # Preserve the initial administrator account on first setup without resetting
+    # an administrator's password on every application startup.
+    c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',('System Admin','admin@joyuniversity.edu',generate_password_hash('Admin@123'),'admin','ADM001',1,now(),now()))
     # Synchronize driver/student profile tables.
     for r in c.execute("SELECT id FROM users WHERE role='driver'").fetchall(): c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(r['id'],now()))
     for r in c.execute("SELECT id FROM users WHERE role='student'").fetchall(): c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(r['id'],now()))
