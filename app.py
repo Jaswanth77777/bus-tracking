@@ -1,6 +1,6 @@
 import os, sqlite3, time, math, secrets, re
 from io import BytesIO
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import wraps
 from flask import Flask, request, jsonify, session, render_template, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -26,7 +26,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('JOY_BUS_SECRET') or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE=os.environ.get('SESSION_COOKIE_SAMESITE','Lax'),
-    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE','0') == '1',
+    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE','1' if os.environ.get('VERCEL') else '0') == '1',
+    PERMANENT_SESSION_LIFETIME=timedelta(days=max(1,int(os.environ.get('JOY_REMEMBER_DAYS','30')))),
     MAX_CONTENT_LENGTH=1_000_000, JSON_SORT_KEYS=False
 )
 GPS_TIMEOUT_SECONDS = int(os.environ.get('GPS_TIMEOUT_SECONDS','90'))
@@ -390,6 +391,8 @@ def login():
     d=request.get_json() or {}
     identity=str(d.get('identity') or '').strip().lower()
     password=d.get('password') or ''
+    requested_role=str(d.get('role') or '').strip().lower()
+    remember=bool(d.get('remember',False))
     c=db()
     if identity in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu'):
         c.close()
@@ -398,7 +401,10 @@ def login():
     c.close()
     if not r or not r['active'] or not check_password_hash(r['password'],password):
         return jsonify(ok=False,error='Invalid email/ID or password. Check the account type and try again.'),401
+    if requested_role and r['role'] != requested_role:
+        return jsonify(ok=False,error='This account does not match the selected account type.'),403
     session.clear()
+    session.permanent=remember
     session['user_id']=r['id']
     csrf_token()
     u=dict(r)
