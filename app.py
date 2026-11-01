@@ -483,7 +483,8 @@ def register_student():
         c.rollback(); c.close()
         raise
     c.close()
-    return jsonify(ok=True,message='Application submitted. Your account will be available after administrator approval.',uid=uid),201
+    message='Administrator account created and ready to sign in.' if active else 'Application submitted. Your account will be available after administrator approval.'
+    return jsonify(ok=True,message=message,uid=uid),201
 
 @app.get('/api/buses')
 def buses():
