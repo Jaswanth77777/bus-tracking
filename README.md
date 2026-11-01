@@ -1,4 +1,6 @@
-# JOY University Bus Tracking — Production Upgrade
+# JOY University Bus Tracking — Upgrade in Progress
+
+> Development branch: `complete-joy-transport-upgrade`. The full specification and acceptance checklist are in [`docs/COMPLETE_UPGRADE_PLAN.md`](docs/COMPLETE_UPGRADE_PLAN.md). This branch is not yet a production-ready release.
 
 This upgrade preserves the existing road map, smooth demo bus movement, bus selection, student services, authentication, driver GPS, complaints, maintenance, emergency alerts and admin monitoring, while adding the requested production-style transport features.
 
@@ -27,11 +29,7 @@ This upgrade preserves the existing road map, smooth demo bus movement, bus sele
 
 ## Demo accounts
 
-- Admin: `admin@joyuniversity.edu` / `Admin@123`
-- Driver: `driver@joyuniversity.edu` / `Driver@123`
-- Student: `student@joyuniversity.edu` / `Student@123`
-
-Change all demo passwords before production use.
+Public demo accounts are no longer seeded by default. For local-only development, set `JOY_ENABLE_DEMO_DATA=1`. This flag is ignored on Vercel. Never use the sample credentials in a public deployment.
 
 ## Local setup
 
