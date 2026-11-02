@@ -750,6 +750,8 @@ async function updateComplaint(id,status){try{await api('/api/complaints/'+id,{m
 async function sendEmergency(id){const message=prompt('Emergency message','Please send assistance to this bus.');if(!message)return;try{await api('/api/emergency',{method:'POST',body:JSON.stringify({bus_id:id,message})});toast('Emergency sent to control center')}catch(e){toast(e.message)}}
 async function addFavorite(id){try{await api('/api/favorites',{method:'POST',body:JSON.stringify({bus_id:id})});toast('Bus added to favorites')}catch(e){toast(e.message)}}
 async function board(id,stop){try{const j=await api('/api/attendance',{method:'POST',body:JSON.stringify({bus_id:id,stop_name:stop||'JOY UNIVERSITY'})});toast('Boarding recorded: '+j.token)}catch(e){toast(e.message)}}
+// Add a shared Business Directory entry to both the user and admin portal navigation.
+(async()=>{try{const r=await fetch('/api/me',{credentials:'same-origin'});const j=await r.json();if(!j.user)return;const nav=document.querySelector('.nav');if(nav&&!nav.querySelector('[data-business-directory]')){const a=document.createElement('a');a.href='/businesses';a.className='btn';a.textContent='BUSINESSES';a.setAttribute('data-business-directory','1');nav.appendChild(a)}}catch(e){}})();
 boot();
 </script>
 
