@@ -429,6 +429,15 @@ def profile_update():
     c.commit(); c.close()
     return profile_get()
 
+@app.get('/api/health')
+def health():
+    # Safe deployment diagnostics: report whether a stable session secret is
+    # present without ever returning the secret itself.
+    configured=bool(os.environ.get('JOY_BUS_SECRET','').strip())
+    return jsonify(ok=True,vercel=bool(os.environ.get('VERCEL')),
+                   session_secret_configured=configured,
+                   login_ready=(not bool(os.environ.get('VERCEL'))) or configured)
+
 @app.post('/api/login')
 def login():
     # Vercel may run each request in a different serverless instance. A random
