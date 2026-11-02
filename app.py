@@ -887,14 +887,20 @@ def admin_system():
 @auth()
 def businesses_list():
     c=db()
-    rows=c.execute("SELECT x.*,b.id bus_id,b.number bus_number,b.status bus_status,b.last_lat,b.last_lon,b.last_gps,b.enabled FROM businesses x LEFT JOIN buses b ON b.business_id=x.id WHERE x.active=1 ORDER BY x.code,b.number").fetchall()
-    c.close()
-    items={}
+    rows=c.execute('SELECT * FROM businesses WHERE active=1 ORDER BY code').fetchall()
+    items=[]
     for row in rows:
-        item=items.setdefault(row['id'],{k:row[k] for k in ('id','code','name','location_name','latitude','longitude','active')})
-        if row['bus_id']:
-            item.setdefault('buses',[]).append({k:row[k] for k in ('bus_id','bus_number','bus_status','last_lat','last_lon','last_gps','enabled')})
-    return jsonify(ok=True,businesses=list(items.values()),total=len(items))
+        item={k:row[k] for k in ('id','code','name','location_name','latitude','longitude','active')}
+        bus_rows=c.execute('SELECT * FROM buses WHERE business_id=? AND enabled=1 ORDER BY number',(row['id'],)).fetchall()
+        item['buses']=[]
+        for bus in bus_rows:
+            payload=bus_payload(bus)
+            item['buses'].append({'bus_id':payload['id'],'bus_number':payload['number'],'status':payload['status'],
+                'route':payload['route'],'gps_status':payload['gps_status'],'live':payload['live'],
+                'position':{'lat':payload['lat'],'lon':payload['lon'],'gps_status':payload['gps_status']}})
+        items.append(item)
+    c.close()
+    return jsonify(ok=True,businesses=items,total=len(items))
 
 @app.post('/api/admin/businesses')
 @auth(['admin'])
