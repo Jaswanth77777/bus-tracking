@@ -284,7 +284,7 @@ def auth(roles=None):
             if not u:return jsonify(ok=False,error='Login required'),401
             if roles and u['role'] not in roles:return jsonify(ok=False,error='Access denied'),403
             # Public demo accounts are read-only; they must never modify university records.
-            if u.get('email','').lower() in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu') and request.method in ('POST','PUT','PATCH','DELETE'):
+            if u.get('email','').lower() in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu','demo.student@joyuniversity.edu','demo.driver@joyuniversity.edu','demo.admin@joyuniversity.edu') and request.method in ('POST','PUT','PATCH','DELETE'):
                 return jsonify(ok=False,error='Demo accounts are read-only. Contact the university administrator for operational access.'),403
             # Demo administrator is a presentation-only account and cannot access private admin APIs.
             if u.get('email','').lower() == 'demo-admin@joyuniversity.edu':
