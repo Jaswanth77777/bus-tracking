@@ -239,6 +239,28 @@ def init_db():
                   (code,f'Business {i:02d}',stop_names[-1],latitude,longitude,now()))
         business=c.execute('SELECT id FROM businesses WHERE code=?',(code,)).fetchone()
         c.execute('UPDATE buses SET business_id=? WHERE number=? AND (business_id IS NULL OR business_id=0)',(business['id'],number))
+    # Stable public demo accounts. These accounts are intentionally read-only.
+    demo_accounts=[
+        ('Demo Student','demo.student@joyuniversity.edu','JoyStudent#2026','student','DEMO-STUDENT'),
+        ('Demo Driver','demo.driver@joyuniversity.edu','JoyDriver#2026','driver','DEMO-DRIVER'),
+        ('Demo Admin','demo.admin@joyuniversity.edu','JoyAdmin#2026','admin','DEMO-ADMIN'),
+    ]
+    for demo_name,demo_email,demo_password,demo_role,demo_uid in demo_accounts:
+        c.execute('INSERT OR IGNORE INTO users(name,email,password,role,uid,active,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?)',
+                  (demo_name,demo_email,generate_password_hash(demo_password),demo_role,demo_uid,now(),now()))
+        c.execute('UPDATE users SET name=?,password=?,role=?,active=1,updated_at=? WHERE lower(email)=?',
+                  (demo_name,generate_password_hash(demo_password),demo_role,now(),demo_email))
+    demo_student=c.execute("SELECT id FROM users WHERE email='demo.student@joyuniversity.edu'").fetchone()
+    demo_driver=c.execute("SELECT id FROM users WHERE email='demo.driver@joyuniversity.edu'").fetchone()
+    if demo_student:
+        c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(demo_student['id'],now()))
+    if demo_driver:
+        c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(demo_driver['id'],now()))
+        demo_bus=c.execute("SELECT id,route_id FROM buses WHERE number='JOY-02'").fetchone()
+        demo_driver_profile=c.execute('SELECT id FROM drivers WHERE user_id=?',(demo_driver['id'],)).fetchone()
+        if demo_bus and demo_driver_profile:
+            c.execute('INSERT OR IGNORE INTO driver_bus_assignments(driver_id,bus_id,route_id,starts_at,active) VALUES(?,?,?,?,1)',
+                      (demo_driver_profile['id'],demo_bus['id'],demo_bus['route_id'],now()))
     d=c.execute("SELECT id FROM users WHERE uid='DRV001'").fetchone(); b=c.execute("SELECT id,route_id FROM buses WHERE number='JOY-01'").fetchone()
     if d and b:
         c.execute('UPDATE buses SET driver_id=? WHERE id=?',(d['id'],b['id']))
