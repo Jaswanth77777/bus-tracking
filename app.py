@@ -68,6 +68,7 @@ PATHS = {
 'JOY-10':[(0,0),(-4,4),(-8,8),(-13,13),(-19,19)]}
 
 SCHEMA = '''
+CREATE TABLE IF NOT EXISTS businesses(id INTEGER PRIMARY KEY AUTOINCREMENT,code TEXT UNIQUE NOT NULL,name TEXT NOT NULL,location_name TEXT NOT NULL,latitude REAL,longitude REAL,active INTEGER DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT);
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('student','driver','admin','transport_manager','security')),uid TEXT UNIQUE,phone TEXT,active INTEGER DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT);
 CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,student_no TEXT,department TEXT,year TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS drivers(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,license_no TEXT,phone TEXT,active INTEGER DEFAULT 1,created_at TEXT NOT NULL);
@@ -182,7 +183,7 @@ def init_db():
     migrate_old_database(c)
     # Ensure columns used by legacy databases.
     for table, col, definition in [
-        ('users','active','INTEGER DEFAULT 1'),('users','updated_at','TEXT'),('buses','route_id','INTEGER'),('buses','enabled','INTEGER DEFAULT 1'),('buses','created_at','TEXT'),('buses','updated_at','TEXT')]:
+        ('users','active','INTEGER DEFAULT 1'),('users','updated_at','TEXT'),('buses','business_id','INTEGER'),('buses','route_id','INTEGER'),('buses','enabled','INTEGER DEFAULT 1'),('buses','created_at','TEXT'),('buses','updated_at','TEXT')]:
         ensure_column(c,table,col,definition)
     # Build performance indexes only after legacy tables have been upgraded.
     # Older SQLite files may have tables without these columns; never let an
@@ -227,6 +228,17 @@ def init_db():
             c.execute('INSERT OR IGNORE INTO stops(route_id,name,stop_order,lat,lon,created_at) VALUES(?,?,?,?,?,?)' if False else 'INSERT OR IGNORE INTO stops(route_id,name,stop_order,lat,lon) VALUES(?,?,?,?,?)',(rid,stop,i,lat,lon))
         c.execute('UPDATE buses SET route_id=? WHERE number=?',(rid,number))
         c.execute('INSERT OR IGNORE INTO buses(number,route_name,route_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(number,route_name,rid,'RUNNING',45,1,1,now(),now()))
+    # Create ten editable operator profiles, each mapped to its own configured route.
+    # Coordinates are illustrative route-endpoint markers, not verified business addresses.
+    for i,(number,(route_name,stop_names)) in enumerate(ROUTES.items(),start=1):
+        code=f'BIZ-{i:02d}'
+        end_x,end_z=PATHS[number][-1]
+        latitude=CAMPUS['lat']+end_z*.004
+        longitude=CAMPUS['lon']+end_x*.004
+        c.execute('INSERT OR IGNORE INTO businesses(code,name,location_name,latitude,longitude,active,created_at) VALUES(?,?,?,?,?,1,?)',
+                  (code,f'Business {i:02d}',stop_names[-1],latitude,longitude,now()))
+        business=c.execute('SELECT id FROM businesses WHERE code=?',(code,)).fetchone()
+        c.execute('UPDATE buses SET business_id=? WHERE number=? AND (business_id IS NULL OR business_id=0)',(business['id'],number))
     d=c.execute("SELECT id FROM users WHERE uid='DRV001'").fetchone(); b=c.execute("SELECT id,route_id FROM buses WHERE number='JOY-01'").fetchone()
     if d and b:
         c.execute('UPDATE buses SET driver_id=? WHERE id=?',(d['id'],b['id']))
@@ -301,7 +313,7 @@ def bus_payload(row):
     idx=min(len(stops)-1,int((progress or 0)*(len(stops)-1)))
     route_km=round(sum(math.hypot(demo_path[i+1][0]-demo_path[i][0],demo_path[i+1][1]-demo_path[i][1]) for i in range(len(demo_path)-1))*0.42,1) if demo_path else 0
     duration=70+(int(number[-2:])%4)*12 if number in ROUTES else None
-    return {'id':b['id'],'number':number,'route':route,'stops':stops,'driver':'Assigned Driver' if b.get('driver_id') else 'Unassigned','lat':lat,'lon':lon,'speed':round(speed,1),'heading':round(heading,1),'next_stop':stops[idx],'destination':stops[-1],'eta_minutes':max(1,round((1-(progress or 0))*18)) if progress is not None else None,'status':('OFFLINE' if stale_live else b.get('status')),'capacity':b.get('capacity',45),'passengers':None,'live':manual,'gps_status':('OFFLINE' if stale_live else gps),'accuracy':accuracy,'last_update':datetime.fromtimestamp(b['last_gps']).strftime('%d %b %Y %I:%M:%S') if b.get('last_gps') else ('Demo clock' if gps=='DEMO GPS' else 'No GPS update'),'progress':progress,'path':demo_path,'route_km':route_km,'demo_duration':duration,'server_time':time.time()}
+    return {'id':b['id'],'number':number,'business_id':b.get('business_id'),'route':route,'stops':stops,'driver':'Assigned Driver' if b.get('driver_id') else 'Unassigned','lat':lat,'lon':lon,'speed':round(speed,1),'heading':round(heading,1),'next_stop':stops[idx],'destination':stops[-1],'eta_minutes':max(1,round((1-(progress or 0))*18)) if progress is not None else None,'status':('OFFLINE' if stale_live else b.get('status')),'capacity':b.get('capacity',45),'passengers':None,'live':manual,'gps_status':('OFFLINE' if stale_live else gps),'accuracy':accuracy,'last_update':datetime.fromtimestamp(b['last_gps']).strftime('%d %b %Y %I:%M:%S') if b.get('last_gps') else ('Demo clock' if gps=='DEMO GPS' else 'No GPS update'),'progress':progress,'path':demo_path,'route_km':route_km,'demo_duration':duration,'server_time':time.time()}
 
 
 @app.get('/api/csrf')
@@ -790,13 +802,23 @@ def admin_user_create():
 @app.post('/api/admin/buses')
 @auth(['admin'])
 def admin_bus_create():
-    d=request.get_json() or {}; number=str(d.get('number','')).strip().upper(); route_id=d.get('route_id');
+    d=request.get_json() or {}; number=str(d.get('number','')).strip().upper(); route_id=d.get('route_id'); business_id=d.get('business_id');
     try: cap=max(1,min(200,int(d.get('capacity',45))))
     except: return jsonify(ok=False,error='Invalid capacity'),400
     if not number or not route_id:return jsonify(ok=False,error='Bus number and route are required'),400
     c=db(); r=c.execute('SELECT * FROM routes WHERE id=?',(int(route_id),)).fetchone()
     if not r:c.close();return jsonify(ok=False,error='Route not found'),404
-    try:c.execute('INSERT INTO buses(number,route_name,route_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],'STOPPED',cap,1,1,now(),now()));c.commit()
+    try:
+        if business_id not in (None,''):
+            business_id=int(business_id)
+            if not c.execute('SELECT 1 FROM businesses WHERE id=? AND active=1',(business_id,)).fetchone():
+                c.close()
+                return jsonify(ok=False,error='Business not found or inactive'),404
+        else:
+            match=c.execute('SELECT id FROM businesses WHERE code=?',(f"BIZ-{int(str(r['code']).split('-')[-1]):02d}",)).fetchone() if str(r['code']).startswith('JOY-') and str(r['code']).split('-')[-1].isdigit() else None
+            business_id=match['id'] if match else None
+        c.execute('INSERT INTO buses(number,route_name,route_id,business_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],business_id,'STOPPED',cap,1,1,now(),now()))
+        c.commit()
     except sqlite3.IntegrityError:c.rollback();c.close();return jsonify(ok=False,error='Bus number already exists'),400
     c.close();return jsonify(ok=True)
 
@@ -870,6 +892,80 @@ def admin_system():
     c.close()
     return jsonify(ok=True,users=[dict(x) for x in users],buses=[dict(x) for x in buses],active_trips=active_trips,pending_complaints=pending,open_emergencies=emergencies,server_time=now())
 
+
+@app.get('/api/businesses')
+@auth()
+def businesses_list():
+    c=db()
+    rows=c.execute('SELECT * FROM businesses WHERE active=1 ORDER BY code').fetchall()
+    items=[]
+    for row in rows:
+        item={k:row[k] for k in ('id','code','name','location_name','latitude','longitude','active')}
+        bus_rows=c.execute('SELECT * FROM buses WHERE business_id=? AND enabled=1 ORDER BY number',(row['id'],)).fetchall()
+        item['buses']=[]
+        for bus in bus_rows:
+            payload=bus_payload(bus)
+            item['buses'].append({'bus_id':payload['id'],'bus_number':payload['number'],'status':payload['status'],
+                'route':payload['route'],'gps_status':payload['gps_status'],'live':payload['live'],
+                'position':{'lat':payload['lat'],'lon':payload['lon'],'gps_status':payload['gps_status']}})
+        items.append(item)
+    c.close()
+    return jsonify(ok=True,businesses=items,total=len(items))
+
+@app.post('/api/admin/businesses')
+@auth(['admin'])
+def admin_business_create():
+    d=request.get_json() or {}
+    code=str(d.get('code') or '').strip().upper()
+    name=str(d.get('name') or '').strip()
+    location=str(d.get('location_name') or '').strip()
+    try:
+        lat=float(d['latitude']) if d.get('latitude') not in (None,'') else None
+        lon=float(d['longitude']) if d.get('longitude') not in (None,'') else None
+    except (TypeError,ValueError):
+        return jsonify(ok=False,error='Coordinates must be numeric'),400
+    if not code or not name or not location:return jsonify(ok=False,error='Business code, name and location are required'),400
+    if (lat is None)!=(lon is None) or (lat is not None and not (-90<=lat<=90 and -180<=lon<=180)):
+        return jsonify(ok=False,error='Provide both valid latitude and longitude'),400
+    c=db()
+    try:
+        c.execute('INSERT INTO businesses(code,name,location_name,latitude,longitude,active,created_at) VALUES(?,?,?,?,?,1,?)',(code,name,location,lat,lon,now()))
+        c.commit()
+    except sqlite3.IntegrityError:
+        c.rollback();c.close();return jsonify(ok=False,error='Business code already exists'),409
+    c.close();return jsonify(ok=True)
+
+@app.patch('/api/admin/businesses/<int:business_id>')
+@auth(['admin'])
+def admin_business_update(business_id):
+    d=request.get_json() or {}
+    c=db();row=c.execute('SELECT * FROM businesses WHERE id=?',(business_id,)).fetchone()
+    if not row:c.close();return jsonify(ok=False,error='Business not found'),404
+    name=str(d.get('name',row['name'])).strip()
+    location=str(d.get('location_name',row['location_name'])).strip()
+    active=1 if bool(d.get('active',row['active'])) else 0
+    try:
+        lat=float(d['latitude']) if d.get('latitude') not in (None,'') else row['latitude']
+        lon=float(d['longitude']) if d.get('longitude') not in (None,'') else row['longitude']
+    except (TypeError,ValueError):
+        c.close();return jsonify(ok=False,error='Coordinates must be numeric'),400
+    if not name or not location or (lat is None)!=(lon is None) or (lat is not None and not (-90<=lat<=90 and -180<=lon<=180)):
+        c.close();return jsonify(ok=False,error='Enter a name, location and valid coordinate pair'),400
+    c.execute('UPDATE businesses SET name=?,location_name=?,latitude=?,longitude=?,active=?,updated_at=? WHERE id=?',(name,location,lat,lon,active,now(),business_id))
+    c.commit();c.close();return jsonify(ok=True)
+
+@app.post('/api/admin/announcements')
+@auth(['admin'])
+def admin_announcement():
+    d=request.get_json() or {}
+    title=str(d.get('title') or '').strip()[:120]
+    message=str(d.get('message') or '').strip()[:1000]
+    if not title or not message:return jsonify(ok=False,error='Title and message are required'),400
+    c=db()
+    c.execute('INSERT INTO notifications(title,message,role,kind,created_at) VALUES(?,?,?,?,?)',(title,message,None,'ANNOUNCEMENT',now()))
+    c.commit();c.close()
+    return jsonify(ok=True,delivery='in_app',message='Announcement saved for all portal notification feeds.')
+
 @app.get('/api/admin')
 @auth(['admin','transport_manager','security'])
 def admin_data():
@@ -881,7 +977,7 @@ def admin_data():
     maintenance=[dict(r) for r in c.execute('SELECT m.*,b.number bus_number FROM maintenance_reports m LEFT JOIN buses b ON b.id=m.bus_id ORDER BY m.id DESC LIMIT 100').fetchall()]
     trips=[dict(r) for r in c.execute('SELECT t.*,b.number bus_number,u.name driver_name FROM trips t LEFT JOIN buses b ON b.id=t.bus_id LEFT JOIN users u ON u.id=t.driver_id ORDER BY t.id DESC LIMIT 200').fetchall()]
     attendance=[dict(r) for r in c.execute('SELECT a.*,u.name user_name,u.uid,b.number bus_number FROM attendance a LEFT JOIN users u ON u.id=a.user_id LEFT JOIN buses b ON b.id=a.bus_id ORDER BY a.id DESC LIMIT 50').fetchall()]
-    routes=[dict(r) for r in c.execute('SELECT * FROM routes ORDER BY code').fetchall()]; stops=[dict(r) for r in c.execute('SELECT s.*,r.code route_code FROM stops s JOIN routes r ON r.id=s.route_id ORDER BY r.code,s.stop_order').fetchall()]; drivers=[dict(r) for r in c.execute('SELECT d.*,u.name,u.email,u.uid,u.active FROM drivers d JOIN users u ON u.id=d.user_id ORDER BY d.id').fetchall()]; assignments=[dict(r) for r in c.execute('SELECT a.*,u.name driver_name,b.number bus_number,r.name route_name FROM driver_bus_assignments a JOIN drivers d ON d.id=a.driver_id JOIN users u ON u.id=d.user_id JOIN buses b ON b.id=a.bus_id LEFT JOIN routes r ON r.id=a.route_id WHERE a.active=1 ORDER BY a.id DESC').fetchall()]; c.close(); return jsonify(ok=True,fleet=fleet,users=users,drivers=drivers,assignments=assignments,routes=routes,stops=stops,emergencies=emergencies,complaints=complaints,maintenance=maintenance,trips=trips,attendance=attendance)
+    businesses=[dict(r) for r in c.execute('SELECT id,code,name,location_name,latitude,longitude,active FROM businesses ORDER BY code').fetchall()]; routes=[dict(r) for r in c.execute('SELECT * FROM routes ORDER BY code').fetchall()]; stops=[dict(r) for r in c.execute('SELECT s.*,r.code route_code FROM stops s JOIN routes r ON r.id=s.route_id ORDER BY r.code,s.stop_order').fetchall()]; drivers=[dict(r) for r in c.execute('SELECT d.*,u.name,u.email,u.uid,u.active FROM drivers d JOIN users u ON u.id=d.user_id ORDER BY d.id').fetchall()]; assignments=[dict(r) for r in c.execute('SELECT a.*,u.name driver_name,b.number bus_number,r.name route_name FROM driver_bus_assignments a JOIN drivers d ON d.id=a.driver_id JOIN users u ON u.id=d.user_id JOIN buses b ON b.id=a.bus_id LEFT JOIN routes r ON r.id=a.route_id WHERE a.active=1 ORDER BY a.id DESC').fetchall()]; c.close(); return jsonify(ok=True,fleet=fleet,businesses=businesses,users=users,drivers=drivers,assignments=assignments,routes=routes,stops=stops,emergencies=emergencies,complaints=complaints,maintenance=maintenance,trips=trips,attendance=attendance)
 
 # Initialize on import as well as when run directly, so WSGI/Gunicorn deployments are ready.
 init_db()
@@ -889,6 +985,11 @@ init_db()
 PAGE = ''
 
 
+
+@app.get('/businesses')
+@auth()
+def businesses_portal():
+    return render_template('businesses.html')
 
 @app.get('/')
 def home(): return render_template('index.html')
