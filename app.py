@@ -808,7 +808,17 @@ def admin_bus_create():
     if not number or not route_id:return jsonify(ok=False,error='Bus number and route are required'),400
     c=db(); r=c.execute('SELECT * FROM routes WHERE id=?',(int(route_id),)).fetchone()
     if not r:c.close();return jsonify(ok=False,error='Route not found'),404
-    try:\n        if business_id not in (None,''):\n            business_id=int(business_id)\n            if not c.execute('SELECT 1 FROM businesses WHERE id=? AND active=1',(business_id,)).fetchone(): c.close(); return jsonify(ok=False,error='Business not found or inactive'),404\n        else:\n            match=c.execute('SELECT id FROM businesses WHERE code=?',(f\"BIZ-{int(str(r['code']).split('-')[-1]):02d}\",)).fetchone() if str(r['code']).startswith('JOY-') and str(r['code']).split('-')[-1].isdigit() else None\n            business_id=match['id'] if match else None\n        c.execute('INSERT INTO buses(number,route_name,route_id,business_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],business_id,'STOPPED',cap,1,1,now(),now()));c.commit()
+    try:
+        if business_id not in (None,''):
+            business_id=int(business_id)
+            if not c.execute('SELECT 1 FROM businesses WHERE id=? AND active=1',(business_id,)).fetchone():
+                c.close()
+                return jsonify(ok=False,error='Business not found or inactive'),404
+        else:
+            match=c.execute('SELECT id FROM businesses WHERE code=?',(f"BIZ-{int(str(r['code']).split('-')[-1]):02d}",)).fetchone() if str(r['code']).startswith('JOY-') and str(r['code']).split('-')[-1].isdigit() else None
+            business_id=match['id'] if match else None
+        c.execute('INSERT INTO buses(number,route_name,route_id,business_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],business_id,'STOPPED',cap,1,1,now(),now()))
+        c.commit()
     except sqlite3.IntegrityError:c.rollback();c.close();return jsonify(ok=False,error='Bus number already exists'),400
     c.close();return jsonify(ok=True)
 
