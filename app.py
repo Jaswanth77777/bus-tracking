@@ -802,13 +802,13 @@ def admin_user_create():
 @app.post('/api/admin/buses')
 @auth(['admin'])
 def admin_bus_create():
-    d=request.get_json() or {}; number=str(d.get('number','')).strip().upper(); route_id=d.get('route_id');
+    d=request.get_json() or {}; number=str(d.get('number','')).strip().upper(); route_id=d.get('route_id'); business_id=d.get('business_id');
     try: cap=max(1,min(200,int(d.get('capacity',45))))
     except: return jsonify(ok=False,error='Invalid capacity'),400
     if not number or not route_id:return jsonify(ok=False,error='Bus number and route are required'),400
     c=db(); r=c.execute('SELECT * FROM routes WHERE id=?',(int(route_id),)).fetchone()
     if not r:c.close();return jsonify(ok=False,error='Route not found'),404
-    try:c.execute('INSERT INTO buses(number,route_name,route_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],'STOPPED',cap,1,1,now(),now()));c.commit()
+    try:\n        if business_id not in (None,''):\n            business_id=int(business_id)\n            if not c.execute('SELECT 1 FROM businesses WHERE id=? AND active=1',(business_id,)).fetchone(): c.close(); return jsonify(ok=False,error='Business not found or inactive'),404\n        else:\n            match=c.execute('SELECT id FROM businesses WHERE code=?',(f\"BIZ-{int(str(r['code']).split('-')[-1]):02d}\",)).fetchone() if str(r['code']).startswith('JOY-') and str(r['code']).split('-')[-1].isdigit() else None\n            business_id=match['id'] if match else None\n        c.execute('INSERT INTO buses(number,route_name,route_id,business_id,status,capacity,simulated,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(number,r['name'],r['id'],business_id,'STOPPED',cap,1,1,now(),now()));c.commit()
     except sqlite3.IntegrityError:c.rollback();c.close();return jsonify(ok=False,error='Bus number already exists'),400
     c.close();return jsonify(ok=True)
 
@@ -967,7 +967,7 @@ def admin_data():
     maintenance=[dict(r) for r in c.execute('SELECT m.*,b.number bus_number FROM maintenance_reports m LEFT JOIN buses b ON b.id=m.bus_id ORDER BY m.id DESC LIMIT 100').fetchall()]
     trips=[dict(r) for r in c.execute('SELECT t.*,b.number bus_number,u.name driver_name FROM trips t LEFT JOIN buses b ON b.id=t.bus_id LEFT JOIN users u ON u.id=t.driver_id ORDER BY t.id DESC LIMIT 200').fetchall()]
     attendance=[dict(r) for r in c.execute('SELECT a.*,u.name user_name,u.uid,b.number bus_number FROM attendance a LEFT JOIN users u ON u.id=a.user_id LEFT JOIN buses b ON b.id=a.bus_id ORDER BY a.id DESC LIMIT 50').fetchall()]
-    routes=[dict(r) for r in c.execute('SELECT * FROM routes ORDER BY code').fetchall()]; stops=[dict(r) for r in c.execute('SELECT s.*,r.code route_code FROM stops s JOIN routes r ON r.id=s.route_id ORDER BY r.code,s.stop_order').fetchall()]; drivers=[dict(r) for r in c.execute('SELECT d.*,u.name,u.email,u.uid,u.active FROM drivers d JOIN users u ON u.id=d.user_id ORDER BY d.id').fetchall()]; assignments=[dict(r) for r in c.execute('SELECT a.*,u.name driver_name,b.number bus_number,r.name route_name FROM driver_bus_assignments a JOIN drivers d ON d.id=a.driver_id JOIN users u ON u.id=d.user_id JOIN buses b ON b.id=a.bus_id LEFT JOIN routes r ON r.id=a.route_id WHERE a.active=1 ORDER BY a.id DESC').fetchall()]; c.close(); return jsonify(ok=True,fleet=fleet,users=users,drivers=drivers,assignments=assignments,routes=routes,stops=stops,emergencies=emergencies,complaints=complaints,maintenance=maintenance,trips=trips,attendance=attendance)
+    businesses=[dict(r) for r in c.execute('SELECT id,code,name,location_name,latitude,longitude,active FROM businesses ORDER BY code').fetchall()]; routes=[dict(r) for r in c.execute('SELECT * FROM routes ORDER BY code').fetchall()]; stops=[dict(r) for r in c.execute('SELECT s.*,r.code route_code FROM stops s JOIN routes r ON r.id=s.route_id ORDER BY r.code,s.stop_order').fetchall()]; drivers=[dict(r) for r in c.execute('SELECT d.*,u.name,u.email,u.uid,u.active FROM drivers d JOIN users u ON u.id=d.user_id ORDER BY d.id').fetchall()]; assignments=[dict(r) for r in c.execute('SELECT a.*,u.name driver_name,b.number bus_number,r.name route_name FROM driver_bus_assignments a JOIN drivers d ON d.id=a.driver_id JOIN users u ON u.id=d.user_id JOIN buses b ON b.id=a.bus_id LEFT JOIN routes r ON r.id=a.route_id WHERE a.active=1 ORDER BY a.id DESC').fetchall()]; c.close(); return jsonify(ok=True,fleet=fleet,businesses=businesses,users=users,drivers=drivers,assignments=assignments,routes=routes,stops=stops,emergencies=emergencies,complaints=complaints,maintenance=maintenance,trips=trips,attendance=attendance)
 
 # Initialize on import as well as when run directly, so WSGI/Gunicorn deployments are ready.
 init_db()
