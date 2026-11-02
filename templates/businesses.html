@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>Business Fleet Portal • JOY University</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{color-scheme:light;--bg:#f5f2fa;--surface:#fff;--line:#e5deef;--ink:#29213a;--muted:#766b87;--purple:#6841a5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px Inter,system-ui,Arial,sans-serif}
+header{padding:18px 22px;background:#fff;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}p{color:var(--muted)}main{max-width:1500px;margin:auto;padding:20px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:10px 13px;font-weight:700;cursor:pointer}.btn.primary{background:var(--purple);color:white;border-color:var(--purple)}
+.layout{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(0,1.4fr);gap:16px}.panel{background:var(--surface);border:1px solid var(--line);border-radius:17px;padding:17px;box-shadow:0 8px 28px #35204d0b}
+.list{display:grid;gap:10px}.business{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fcfbfe}.business h3{margin:0 0 5px}.meta{color:var(--muted);font-size:12px}.bus{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid var(--line);margin-top:9px}
+#map{height:480px;border-radius:13px;overflow:hidden}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);margin:4px 0 10px}.admin{margin-top:16px;display:none}.status{font-size:11px;border-radius:20px;padding:4px 8px;background:#eee8f5;color:#60467f;white-space:nowrap}.status.live{background:#dcfce7;color:#166534}.empty{padding:30px;text-align:center;color:var(--muted)}
+@media(max-width:850px){.layout{grid-template-columns:1fr}#map{height:380px}}@media(max-width:500px){main{padding:12px}.formgrid{grid-template-columns:1fr}header{padding:14px}}
+</style>
+</head>
+<body>
+<header><div><h1>Business fleet directory</h1><div class="meta">All registered businesses, assigned buses and locations</div></div><div class="actions"><a class="btn" href="/">Main portal</a><button class="btn" onclick="load()">Refresh</button></div></header>
+<main>
+<div class="layout">
+<section class="panel"><div class="actions" style="justify-content:space-between"><h2 style="margin:0">Businesses</h2><span id="count" class="meta">Loading…</span></div><p>Each business has its own operating location and bus assignments.</p><div id="list" class="list"><div class="empty">Loading businesses…</div></div></section>
+<section class="panel"><h2 style="margin-top:0">Business locations and fleet</h2><div id="map"></div><p class="meta">Map pins show configured business locations. GPS markers are shown only when the bus has a reported or demo position.</p></section>
+</div>
+<section id="admin" class="panel admin">
+<h2>Admin controls</h2><p>Create businesses, update their operating location and send an in-portal announcement.</p>
+<div class="formgrid">
+<label>Business code<input class="input" id="code" placeholder="BIZ-11"></label>
+<label>Business name<input class="input" id="name" placeholder="Business name"></label>
+<label>Location name<input class="input" id="location" placeholder="Town / operating area"></label>
+<label>Latitude<input class="input" id="lat" type="number" step="any" placeholder="Optional"></label>
+<label>Longitude<input class="input" id="lon" type="number" step="any" placeholder="Optional"></label>
+</div><button class="btn primary" onclick="createBusiness()">Add business</button>
+<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+<div class="formgrid"><label>Announcement title<input class="input" id="noticeTitle" placeholder="Fleet update"></label><label>Message<input class="input" id="noticeMessage" placeholder="Message for all portal users"></label></div>
+<button class="btn primary" onclick="announce()">Send in-portal announcement</button><p class="meta">This creates an in-app notification. Browser/mobile push delivery requires notification permission and deployment push credentials.</p>
+</section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);let map,markers=[];
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(url,options={}){const headers={...(options.headers||{}),'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name=csrf-token]').content};const r=await fetch(url,{...options,headers,credentials:'same-origin'});const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Request failed');return j}
+function initMap(){if(map)return;map=L.map('map').setView([8.2436,77.6058],9);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}
+function drawMap(items){initMap();markers.forEach(m=>map.removeLayer(m));markers=[];const bounds=[];items.forEach(b=>{if(b.latitude!=null&&b.longitude!=null){const p=[b.latitude,b.longitude];bounds.push(p);markers.push(L.marker(p).addTo(map).bindPopup('<b>'+esc(b.name)+'</b><br>'+esc(b.location_name)+'<br>Business location'));} (b.buses||[]).forEach(bus=>{if(bus.position&&bus.position.lat!=null&&bus.position.lon!=null){const p=[bus.position.lat,bus.position.lon];bounds.push(p);markers.push(L.circleMarker(p,{radius:8,color:'#6841a5',fillOpacity:.9}).addTo(map).bindPopup('<b>'+esc(bus.bus_number)+'</b><br>'+esc(bus.position.gps_status||'GPS position')))}})});if(bounds.length)map.fitBounds(bounds,{padding:[25,25],maxZoom:12})}
+function render(items){$('count').textContent=items.length+' businesses';$('list').innerHTML=items.length?items.map(b=>'<article class="business"><div class="actions" style="justify-content:space-between"><div><h3>'+esc(b.name)+'</h3><div class="meta">'+esc(b.code)+' · '+esc(b.location_name)+'</div></div><span class="status">'+(b.active?'ACTIVE':'INACTIVE')+'</span></div>'+(b.buses||[]).map(bus=>'<div class="bus"><div><b>'+esc(bus.bus_number)+'</b><div class="meta">'+esc(bus.route||'Route not assigned')+' · '+esc(bus.gps_status||'No GPS')+'</div></div><span class="status '+(bus.live?'live':'')+'">'+esc(bus.status||'UNKNOWN')+'</span></div>').join('')||'<div class="meta" style="margin-top:10px">No buses assigned yet</div>'+'</article>').join(''):'<div class="empty">No businesses found.</div>';drawMap(items)}
+async function load(){try{const [data,me]=await Promise.all([api('/api/businesses'),api('/api/me')]);render(data.businesses||[]);if(me.user&&me.user.role==='admin')$('admin').style.display='block'}catch(e){$('list').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
+async function createBusiness(){try{await api('/api/admin/businesses',{method:'POST',body:JSON.stringify({code:$('code').value,name:$('name').value,location_name:$('location').value,latitude:$('lat').value||null,longitude:$('lon').value||null})});alert('Business added');['code','name','location','lat','lon'].forEach(k=>$(k).value='');load()}catch(e){alert(e.message)}}
+async function announce(){try{await api('/api/admin/announcements',{method:'POST',body:JSON.stringify({title:$('noticeTitle').value,message:$('noticeMessage').value})});alert('Announcement added to in-portal notification feeds');$('noticeTitle').value='';$('noticeMessage').value=''}catch(e){alert(e.message)}}
+load();
+</script>
+</body></html>
