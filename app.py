@@ -391,8 +391,14 @@ def emit_event(event,payload):
 
 @app.get('/api/health')
 def health():
+    # Keep the fleet status response and expose safe deployment diagnostics.
+    # Never return the secret itself.
+    configured=bool(os.environ.get('JOY_BUS_SECRET','').strip())
+    vercel=bool(os.environ.get('VERCEL'))
     return jsonify(ok=True,service='JOY University Bus Tracking',time=time.time(),
-                   realtime='gps+polling',fleet_size=len(ROUTES))
+                   realtime='gps+polling',fleet_size=len(ROUTES),
+                   vercel=vercel,session_secret_configured=configured,
+                   login_ready=(not vercel) or configured)
 
 @app.get('/api/me')
 def api_me(): return jsonify(ok=True,user=current_user(),campus=CAMPUS)
@@ -428,15 +434,6 @@ def profile_update():
         c.execute('UPDATE drivers SET license_no=?,phone=? WHERE user_id=?',(license_no,phone,u['id']))
     c.commit(); c.close()
     return profile_get()
-
-@app.get('/api/health')
-def health():
-    # Safe deployment diagnostics: report whether a stable session secret is
-    # present without ever returning the secret itself.
-    configured=bool(os.environ.get('JOY_BUS_SECRET','').strip())
-    return jsonify(ok=True,vercel=bool(os.environ.get('VERCEL')),
-                   session_secret_configured=configured,
-                   login_ready=(not bool(os.environ.get('VERCEL'))) or configured)
 
 @app.post('/api/login')
 def login():
