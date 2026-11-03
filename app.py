@@ -771,8 +771,8 @@ def gps_history(bus_id):
 def admin_import_template():
     wb=Workbook()
     ws=wb.active; ws.title='Students'
-    ws.append(['name','email','password','phone','student_no','department','year'])
-    ws.append(['Example Student','student@example.edu','ChangeMe123','9876543210','JOY2026001','Computer Science','1st Year'])
+    ws.append(['name','email','password','phone','student_no','department','year','bus_number','seat_number'])
+    ws.append(['Example Student','student@example.edu','ChangeMe123','9876543210','JOY2026001','Computer Science','1st Year','JOY-01',1])
     out=BytesIO(); wb.save(out); out.seek(0)
     return send_file(out,as_attachment=True,download_name='joy_university_student_import_template.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -851,7 +851,7 @@ def admin_import_students():
         rows=ws.iter_rows(values_only=True)
         headers=[str(v or '').strip().lower().replace(' ','_') for v in next(rows,())]
         if not ({'name','student_name'} & set(headers)) or not ({'email','student_email'} & set(headers)):
-            return jsonify(ok=False,error='Excel must include student name, email and password columns'),400
+            return jsonify(ok=False,error='Excel must include student name and email columns; password is optional and a secure temporary password will be generated'),400
         indexes={name:i for i,name in enumerate(headers)}
         c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]
         try:
