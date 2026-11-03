@@ -877,7 +877,7 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
                     if seat is not None and bus['capacity'] and seat>bus['capacity']:
                         errors.append({'row':row_no,'error':f'Seat {seat} exceeds bus capacity ({bus["capacity"]})'}); continue
-                    if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>(SELECT id FROM users WHERE lower(email)=?)',(bus['id'],seat,email)).fetchone():
+                    if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>COALESCE((SELECT id FROM users WHERE lower(email)=?),-1)',(bus['id'],seat,email)).fetchone():
                         errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
                 try:
                     seat=int(float(seat_text)) if seat_text else None
