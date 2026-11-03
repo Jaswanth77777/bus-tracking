@@ -1,0 +1,235 @@
+CREATE DATABASE IF NOT EXISTS joy_transport CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE joy_transport;
+
+CREATE TABLE users (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ email VARCHAR(190) NOT NULL UNIQUE,
+ password_hash VARCHAR(255) NOT NULL,
+ role ENUM('admin','transport_manager','security','student','driver') NOT NULL,
+ phone VARCHAR(30) NULL,
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+ INDEX idx_users_role_active(role,is_active)
+) ENGINE=InnoDB;
+
+CREATE TABLE students (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+ student_no VARCHAR(60) NOT NULL UNIQUE,
+ department VARCHAR(120) NULL,
+ academic_year VARCHAR(40) NULL,
+ emergency_contact_name VARCHAR(120) NULL,
+ emergency_contact_phone VARCHAR(30) NULL,
+ CONSTRAINT fk_students_user FOREIGN KEY(user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE drivers (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+ license_no VARCHAR(80) NOT NULL,
+ license_expiry DATE NULL,
+ CONSTRAINT fk_drivers_user FOREIGN KEY(user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE routes (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ code VARCHAR(40) NOT NULL UNIQUE,
+ name VARCHAR(160) NOT NULL,
+ description TEXT NULL,
+ is_active TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB;
+
+CREATE TABLE stops (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ route_id BIGINT UNSIGNED NOT NULL,
+ name VARCHAR(160) NOT NULL,
+ stop_order INT UNSIGNED NOT NULL,
+ latitude DECIMAL(10,7) NOT NULL,
+ longitude DECIMAL(10,7) NOT NULL,
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ UNIQUE KEY uq_route_stop_order(route_id,stop_order),
+ CONSTRAINT fk_stops_route FOREIGN KEY(route_id) REFERENCES routes(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE buses (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_number VARCHAR(40) NOT NULL UNIQUE,
+ registration_no VARCHAR(40) NULL UNIQUE,
+ capacity SMALLINT UNSIGNED NOT NULL DEFAULT 40,
+ route_id BIGINT UNSIGNED NULL,
+ status ENUM('STOPPED','RUNNING','MAINTENANCE','OUT_OF_SERVICE') NOT NULL DEFAULT 'STOPPED',
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_buses_route FOREIGN KEY(route_id) REFERENCES routes(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE bus_driver_assignments (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ driver_id BIGINT UNSIGNED NOT NULL,
+ starts_at DATETIME NOT NULL,
+ ends_at DATETIME NULL,
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ INDEX idx_assignment_active(bus_id,is_active),
+ CONSTRAINT fk_bda_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_bda_driver FOREIGN KEY(driver_id) REFERENCES drivers(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE student_bus_assignments (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ student_id BIGINT UNSIGNED NOT NULL,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ stop_id BIGINT UNSIGNED NULL,
+ starts_on DATE NOT NULL,
+ ends_on DATE NULL,
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ INDEX idx_sba_student(student_id,is_active),
+ CONSTRAINT fk_sba_student FOREIGN KEY(student_id) REFERENCES students(id),
+ CONSTRAINT fk_sba_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_sba_stop FOREIGN KEY(stop_id) REFERENCES stops(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE trips (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ driver_id BIGINT UNSIGNED NOT NULL,
+ route_id BIGINT UNSIGNED NOT NULL,
+ started_at DATETIME NOT NULL,
+ ended_at DATETIME NULL,
+ status ENUM('ACTIVE','ENDED','CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+ INDEX idx_trips_active(status,bus_id),
+ CONSTRAINT fk_trips_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_trips_driver FOREIGN KEY(driver_id) REFERENCES drivers(id),
+ CONSTRAINT fk_trips_route FOREIGN KEY(route_id) REFERENCES routes(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE gps_locations (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ trip_id BIGINT UNSIGNED NOT NULL,
+ driver_id BIGINT UNSIGNED NOT NULL,
+ latitude DECIMAL(10,7) NOT NULL,
+ longitude DECIMAL(10,7) NOT NULL,
+ speed_kmh DECIMAL(7,2) NULL,
+ heading DECIMAL(6,2) NULL,
+ accuracy_m DECIMAL(8,2) NULL,
+ recorded_at DATETIME(3) NOT NULL,
+ INDEX idx_gps_bus_time(bus_id,recorded_at),
+ CONSTRAINT fk_gps_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_gps_trip FOREIGN KEY(trip_id) REFERENCES trips(id),
+ CONSTRAINT fk_gps_driver FOREIGN KEY(driver_id) REFERENCES drivers(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE attendance (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ student_id BIGINT UNSIGNED NOT NULL,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ trip_id BIGINT UNSIGNED NOT NULL,
+ stop_id BIGINT UNSIGNED NULL,
+ attendance_type ENUM('BOARDING','ALIGHTING') NOT NULL DEFAULT 'BOARDING',
+ recorded_by BIGINT UNSIGNED NOT NULL,
+ recorded_at DATETIME NOT NULL,
+ qr_token_hash CHAR(64) NULL,
+ INDEX idx_attendance_student(student_id,recorded_at),
+ CONSTRAINT fk_att_student FOREIGN KEY(student_id) REFERENCES students(id),
+ CONSTRAINT fk_att_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_att_trip FOREIGN KEY(trip_id) REFERENCES trips(id),
+ CONSTRAINT fk_att_stop FOREIGN KEY(stop_id) REFERENCES stops(id),
+ CONSTRAINT fk_att_actor FOREIGN KEY(recorded_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE transport_fees (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ student_id BIGINT UNSIGNED NOT NULL,
+ academic_period VARCHAR(40) NOT NULL,
+ amount DECIMAL(10,2) NOT NULL,
+ due_date DATE NOT NULL,
+ status ENUM('PENDING','PARTIAL','PAID','OVERDUE','WAIVED') NOT NULL DEFAULT 'PENDING',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_fees_student(student_id,status),
+ CONSTRAINT fk_fees_student FOREIGN KEY(student_id) REFERENCES students(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE fee_payments (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ fee_id BIGINT UNSIGNED NOT NULL,
+ amount DECIMAL(10,2) NOT NULL,
+ payment_reference VARCHAR(120) NULL,
+ paid_at DATETIME NOT NULL,
+ recorded_by BIGINT UNSIGNED NOT NULL,
+ CONSTRAINT fk_payment_fee FOREIGN KEY(fee_id) REFERENCES transport_fees(id),
+ CONSTRAINT fk_payment_actor FOREIGN KEY(recorded_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE complaints (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ student_id BIGINT UNSIGNED NOT NULL,
+ bus_id BIGINT UNSIGNED NULL,
+ subject VARCHAR(180) NOT NULL,
+ message TEXT NOT NULL,
+ status ENUM('OPEN','IN_PROGRESS','RESOLVED','REJECTED') NOT NULL DEFAULT 'OPEN',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NULL,
+ CONSTRAINT fk_complaint_student FOREIGN KEY(student_id) REFERENCES students(id),
+ CONSTRAINT fk_complaint_bus FOREIGN KEY(bus_id) REFERENCES buses(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE notifications (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ title VARCHAR(180) NOT NULL,
+ message TEXT NOT NULL,
+ audience_role VARCHAR(40) NULL,
+ audience_user_id BIGINT UNSIGNED NULL,
+ created_by BIGINT UNSIGNED NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_notification_user FOREIGN KEY(audience_user_id) REFERENCES users(id),
+ CONSTRAINT fk_notification_actor FOREIGN KEY(created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE emergency_alerts (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_id BIGINT UNSIGNED NULL,
+ driver_id BIGINT UNSIGNED NULL,
+ trip_id BIGINT UNSIGNED NULL,
+ message TEXT NOT NULL,
+ status ENUM('ACTIVE','ACKNOWLEDGED','RESOLVED') NOT NULL DEFAULT 'ACTIVE',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ resolved_at DATETIME NULL,
+ CONSTRAINT fk_emergency_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_emergency_driver FOREIGN KEY(driver_id) REFERENCES drivers(id),
+ CONSTRAINT fk_emergency_trip FOREIGN KEY(trip_id) REFERENCES trips(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE maintenance_reports (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ bus_id BIGINT UNSIGNED NOT NULL,
+ driver_id BIGINT UNSIGNED NULL,
+ issue TEXT NOT NULL,
+ status ENUM('REPORTED','IN_PROGRESS','RESOLVED') NOT NULL DEFAULT 'REPORTED',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_maintenance_bus FOREIGN KEY(bus_id) REFERENCES buses(id),
+ CONSTRAINT fk_maintenance_driver FOREIGN KEY(driver_id) REFERENCES drivers(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE activity_logs (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ actor_user_id BIGINT UNSIGNED NULL,
+ action VARCHAR(100) NOT NULL,
+ entity_type VARCHAR(80) NULL,
+ entity_id BIGINT UNSIGNED NULL,
+ details JSON NULL,
+ ip_address VARCHAR(45) NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_activity_time(created_at),
+ CONSTRAINT fk_activity_actor FOREIGN KEY(actor_user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE system_settings (
+ setting_key VARCHAR(100) PRIMARY KEY,
+ setting_value TEXT NOT NULL,
+ updated_by BIGINT UNSIGNED NULL,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ CONSTRAINT fk_setting_actor FOREIGN KEY(updated_by) REFERENCES users(id)
+) ENGINE=InnoDB;
