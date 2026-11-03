@@ -982,9 +982,15 @@ def admin_create_student_and_assign_bus():
         bus=c.execute('SELECT id,number,route_id,route_name,capacity FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
         if not bus:
             c.close(); return jsonify(ok=False,error='Selected bus is unavailable'),400
-        if seat_number is not None and bus['capacity'] and seat_number>bus['capacity']:
-            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({bus["capacity"]})'),400
-        if seat_number is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=?',(bus_id,seat_number)).fetchone():
+        capacity=max(1,int(bus['capacity'] or 45))
+        occupied={int(r['seat_number']) for r in c.execute('SELECT seat_number FROM student_bus_assignments WHERE bus_id=? AND seat_number IS NOT NULL',(bus_id,)).fetchall()}
+        if seat_number is None:
+            seat_number=next((n for n in range(1,capacity+1) if n not in occupied),None)
+            if seat_number is None:
+                c.close(); return jsonify(ok=False,error=f'{bus["number"]} is full. Select another bus.'),409
+        if seat_number>capacity:
+            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({capacity})'),400
+        if seat_number in occupied:
             c.close(); return jsonify(ok=False,error=f'Seat {seat_number} is already assigned on {bus["number"]}'),409
         if student_no and c.execute('SELECT 1 FROM students WHERE lower(student_no)=lower(?)',(student_no,)).fetchone():
             c.close(); return jsonify(ok=False,error='Student number is already used by another student'),409
