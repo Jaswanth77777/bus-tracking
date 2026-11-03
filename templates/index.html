@@ -704,7 +704,7 @@ async function adminPage(section='overview'){
    exports:['Export records','Download student, driver, trip, attendance, complaint, emergency and maintenance records as CSV files for Excel.'],
    liveMap:['Live bus map','View all campus buses and their current map positions.']
   };
-  const visibleAdminItems=['overview','students','drivers','buses','routes','assignments','trips','attendance','complaints','emergencies','maintenance','exports','liveMap'];
+  const visibleAdminItems=['overview','students','drivers','buses','routes','assignments','trips','complaints','emergencies','maintenance','exports','liveMap'];
   const nav=visibleAdminItems.filter(k=>items[k]).map(k=>'<button class="joy-admin-nav '+(section===k?'active':'')+'" onclick="'+(k==='liveMap'?"openView('fleet')":"adminPage('"+k+"')")+'"><span>'+({overview:'▦',businesses:'🏢',students:'♙',drivers:'♧',buses:'▣',routes:'⌖',assignments:'⇄',trips:'◷',attendance:'✓',complaints:'☷',emergencies:'⚠',maintenance:'⚙',admins:'♙',settings:'⚙',exports:'⇩',liveMap:'🗺️'}[k])+'</span>'+items[k][0]+'</button>').join('');
   const stat=(label,value,sub='')=>'<div class="joy-admin-stat"><span>'+label+'</span><b>'+value+'</b><small>'+sub+'</small></div>';
   const table=(headers,rows)=>'<div class="joy-admin-tablewrap"><table class="joy-admin-table"><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+headers.length+'" class="muted">No records available.</td></tr>')+'</tbody></table></div>';
