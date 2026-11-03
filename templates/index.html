@@ -358,7 +358,8 @@ body{background:radial-gradient(ellipse at 12% 0,#eee7fa 0,transparent 42%),#f7f
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let me=null,buses=[],selected=null,gpsWatch=null,currentView='fleet',viewStack=[],paused=false,lastStop=null,notifyStops=true,filterMode='all',visualStates={},liveLoopRunning=false,roadRoutes={},roadLoading={},mapViewMode='all',mapState={map:null,markers:{},routeLine:null,stopLayer:null,ready:false,fallback:false};
 const defaultSettings={follow:true,notifyStops:true,showLabels:true,autoRefresh:true,compactMap:false,reduceMotion:false};
-function readJoySettings(){try{const raw=localStorage.getItem('joySettings');if(!raw)return {};const value=JSON.parse(raw);return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}catch(e){console.warn('Saved display settings unavailable; using defaults.',e);return {}}}\nlet appSettings={...defaultSettings,...readJoySettings()};let follow=appSettings.follow;
+function readJoySettings(){try{const raw=localStorage.getItem('joySettings');if(!raw)return {};const value=JSON.parse(raw);return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}catch(e){console.warn('Saved display settings unavailable; using defaults.',e);return {}}}
+let appSettings={...defaultSettings,...readJoySettings()};let follow=appSettings.follow;
 function saveSettings(){try{localStorage.setItem('joySettings',JSON.stringify(appSettings))}catch(e){console.warn('Could not save display settings.',e)}follow=appSettings.follow;notifyStops=appSettings.notifyStops}
 function openView(name){if(currentView!==name)viewStack.push(currentView);openViewNoStack(name)}
 function openViewNoStack(name){currentView=name;({fleet,services:servicesPage,driver:driverPage,admin:adminPage,profile:profilePage,settings:settingsPage}[name]||fleet)()}
