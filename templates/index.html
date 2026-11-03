@@ -790,7 +790,7 @@ async function importStudentBusAssignments(){
   toast('Bulk bus assignment import complete');adminCache=null;adminPage('students');
  }catch(e){toast(e.message)}
 }
-async async function createStudentAndAssignBus(){
+async function createStudentAndAssignBus(){
  const data={name:$('#assignStudentName').value.trim(),student_no:$('#assignStudentNo').value.trim(),email:$('#assignStudentEmail').value.trim(),phone:$('#assignStudentPhone').value.trim(),department:$('#assignStudentDepartment').value.trim(),year:$('#assignStudentYear').value.trim(),password:$('#assignStudentPassword').value,bus_id:Number($('#assignStudentBus').value),seat_number:$('#assignStudentSeat').value===''?null:Number($('#assignStudentSeat').value)};
  if(!data.name||!data.email||!data.bus_id)return toast('Enter student name, email and select a bus');
  if(data.password&&data.password.length<8)return toast('Password must be at least 8 characters, or leave it blank to generate one');
