@@ -890,6 +890,51 @@ def admin_user_create():
     except sqlite3.IntegrityError: c.rollback();c.close();return jsonify(ok=False,error='Email already exists'),400
     c.close();return jsonify(ok=True,uid=uid)
 
+@app.post('/api/admin/students/create-and-assign')
+@auth(['admin'])
+def admin_create_student_and_assign_bus():
+    d=request.get_json() or {}
+    name=str(d.get('name','')).strip()
+    email=str(d.get('email','')).strip().lower()
+    password=str(d.get('password',''))
+    student_no=str(d.get('student_no','')).strip()[:40]
+    phone=str(d.get('phone','')).strip()[:25]
+    department=str(d.get('department','')).strip()[:80]
+    year=str(d.get('year','')).strip()[:30]
+    try: bus_id=int(d.get('bus_id'))
+    except (TypeError,ValueError): return jsonify(ok=False,error='Select a bus for this student'),400
+    if not name or len(name)>100 or '@' not in email or len(password)<8:
+        return jsonify(ok=False,error='Enter a valid student name, email and password (at least 8 characters)'),400
+    c=db()
+    try:
+        bus=c.execute('SELECT id,number,route_id,route_name FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+        if not bus:
+            c.close(); return jsonify(ok=False,error='Selected bus is unavailable'),400
+        count=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
+        uid=f"JOY-ST-{datetime.now().year}-{count:04d}"
+        stamp=now()
+        c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
+                  (name,email,generate_password_hash(password),'student',uid,phone,1,stamp,stamp))
+        student_id=c.execute('SELECT last_insert_rowid() id').fetchone()['id']
+        c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',
+                  (student_id,student_no,department,year,stamp))
+        c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?)',
+                  (student_id,bus_id,stamp,stamp))
+        c.commit()
+        route=c.execute('SELECT name FROM routes WHERE id=?',(bus['route_id'],)).fetchone() if bus['route_id'] else None
+        stops=c.execute('SELECT name FROM stops WHERE route_id=? AND active=1 ORDER BY stop_order',(bus['route_id'],)).fetchall() if bus['route_id'] else []
+        result={'ok':True,'student_id':student_id,'uid':uid,'email':email,'bus_number':bus['number'],
+                'route_name':route['name'] if route else bus['route_name'],
+                'stops':[x['name'] for x in stops]}
+    except sqlite3.IntegrityError:
+        c.rollback(); c.close()
+        return jsonify(ok=False,error='That email or student account already exists. Use a unique email address.'),409
+    except Exception:
+        c.rollback(); c.close()
+        raise
+    c.close()
+    return jsonify(result),201
+
 @app.put('/api/admin/students/<int:student_id>/bus')
 @auth(['admin'])
 def admin_assign_student_bus(student_id):
