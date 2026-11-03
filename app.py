@@ -859,7 +859,7 @@ def admin_import_students():
         if 'name' not in headers or 'email' not in headers:
             return jsonify(ok=False,error='Excel must include name/student_name and email/student_email columns. Password is optional.'),400
         indexes={name:i for i,name in enumerate(headers)}
-        c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]
+        c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]; assignment_details=[]
         try:
             for row_no,row in enumerate(rows,start=2):
                 if not row or not any(v is not None and str(v).strip() for v in row): continue
@@ -880,9 +880,13 @@ def admin_import_students():
                 except ValueError:
                     errors.append({'row':row_no,'error':'Seat number must be a positive whole number'}); continue
                 existing=c.execute("SELECT id FROM users WHERE lower(email)=? AND role='student'",(email,)).fetchone()
+                if student_no:
+                    duplicate_no=c.execute('SELECT user_id FROM students WHERE lower(student_no)=lower(?) AND user_id<>?',(student_no,existing['id'] if existing else -1)).fetchone()
+                    if duplicate_no:
+                        errors.append({'row':row_no,'error':'Student number is already used by another account: '+student_no}); continue
                 bus=None
                 if bus_number:
-                    bus=c.execute('SELECT id,capacity FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
+                    bus=c.execute('SELECT id,number,capacity,route_id,route_name FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
                     if not bus:
                         errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
                     if seat is not None and bus['capacity'] and seat>bus['capacity']:
@@ -892,8 +896,8 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
                 if existing:
                     student_id=existing['id']; skipped+=1
-                    c.execute('INSERT OR IGNORE INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
-                    if student_no: c.execute('UPDATE students SET student_no=?,department=?,year=? WHERE user_id=?',(student_no,cell('department'),cell('year'),student_id))
+                    c.execute('INSERT OR IGNORE INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no or None,cell('department'),cell('year'),now()))
+                    if student_no: c.execute('UPDATE students SET student_no=?,department=?,year=? WHERE user_id=?',(student_no or None,cell('department'),cell('year'),student_id))
                 else:
                     if c.execute('SELECT 1 FROM users WHERE lower(email)=?',(email,)).fetchone():
                         errors.append({'row':row_no,'error':'Email is already used by a non-student account'}); continue
@@ -903,7 +907,7 @@ def admin_import_students():
                     try:
                         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(name,email,generate_password_hash(issued_password),'student',uid,cell('phone'),1,now(),now()))
                         student_id=cur.lastrowid
-                        c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
+                        c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no or None,cell('department'),cell('year'),now()))
                         created+=1
                         credentials.append({'name':name,'email':email,'password':issued_password,'student_id':uid})
                     except sqlite3.IntegrityError:
@@ -912,12 +916,14 @@ def admin_import_students():
                     stamp=now()
                     c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(student_id,bus['id'],seat,stamp,stamp))
                     assigned+=1
+                    route=c.execute('SELECT name FROM routes WHERE id=?',(bus['route_id'],)).fetchone() if bus['route_id'] else None
+                    assignment_details.append({'name':name,'email':email,'bus_number':bus['number'],'seat_number':seat,'route_name':route['name'] if route else bus['route_name']})
             c.commit()
         except Exception:
             c.rollback(); raise
         finally:
             c.close()
-        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,credentials=credentials,errors=errors)
+        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,credentials=credentials,assignments=assignment_details,errors=errors)
     except Exception as e:
         return jsonify(ok=False,error='Could not read Excel file: '+str(e)),400
 
