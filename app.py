@@ -647,8 +647,11 @@ def attendance():
         bid=int(d.get('bus_id')); stop=str(d.get('stop_name','JOY UNIVERSITY')).strip() or 'JOY UNIVERSITY'
     except (TypeError,ValueError):
         c.close(); return jsonify(ok=False,error='Valid bus is required'),400
-    if not c.execute('SELECT id FROM buses WHERE id=?',(bid,)).fetchone():
-        c.close(); return jsonify(ok=False,error='Bus not found'),404
+    assigned=c.execute('SELECT bus_id FROM student_bus_assignments WHERE student_id=?',(current_user()['id'],)).fetchone()
+    if not assigned or int(assigned['bus_id'])!=bid:
+        c.close(); return jsonify(ok=False,error='Attendance can only be recorded for your assigned bus'),403
+    if not c.execute('SELECT id FROM buses WHERE id=? AND enabled=1',(bid,)).fetchone():
+        c.close(); return jsonify(ok=False,error='Assigned bus is unavailable'),404
     try:
         stamp=now(); c.execute('INSERT INTO attendance(user_id,bus_id,stop_name,boarded_at,qr_token) VALUES(?,?,?,?,?)',
                   (current_user()['id'],bid,stop,stamp,token)); c.execute('INSERT INTO boarding_history(user_id,bus_id,stop_name,boarded_at,qr_token) VALUES(?,?,?,?,?)',(current_user()['id'],bid,stop,stamp,token)); c.commit()
