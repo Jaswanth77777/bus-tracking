@@ -775,6 +775,63 @@ def admin_import_template():
     out=BytesIO(); wb.save(out); out.seek(0)
     return send_file(out,as_attachment=True,download_name='joy_university_student_import_template.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+@app.get('/api/admin/student-bus-import-template')
+@auth(['admin'])
+def admin_student_bus_import_template():
+    wb=Workbook()
+    ws=wb.active; ws.title='Student Bus Assignments'
+    ws.append(['email','student_no','bus_number'])
+    ws.append(['student@example.edu','JOY2026001','JOY-01'])
+    ws.append(['another.student@example.edu','','JOY-02'])
+    out=BytesIO(); wb.save(out); out.seek(0)
+    return send_file(out,as_attachment=True,download_name='joy_student_bus_assignment_template.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.post('/api/admin/import-student-bus-assignments')
+@auth(['admin'])
+def admin_import_student_bus_assignments():
+    upload=request.files.get('file')
+    if not upload or not upload.filename.lower().endswith('.xlsx'):
+        return jsonify(ok=False,error='Upload an .xlsx Excel workbook'),400
+    try:
+        wb=load_workbook(BytesIO(upload.read()),read_only=True,data_only=True)
+        ws=wb['Student Bus Assignments'] if 'Student Bus Assignments' in wb.sheetnames else wb.active
+        rows=ws.iter_rows(values_only=True)
+        headers=[str(v or '').strip().lower().replace(' ','_') for v in next(rows,())]
+        if 'bus_number' not in headers or not ({'email','student_no'} & set(headers)):
+            return jsonify(ok=False,error='Excel must include bus_number and at least one identifier column: email or student_no'),400
+        indexes={name:i for i,name in enumerate(headers)}
+        c=db(); assigned=0; errors=[]
+        try:
+            for row_no,row in enumerate(rows,start=2):
+                if not row or not any(v is not None and str(v).strip() for v in row): continue
+                def cell(key):
+                    i=indexes.get(key)
+                    return str(row[i]).strip() if i is not None and i<len(row) and row[i] is not None else ''
+                email=cell('email').lower(); student_no=cell('student_no'); bus_number=cell('bus_number').upper()
+                if not bus_number or (not email and not student_no):
+                    errors.append({'row':row_no,'error':'Provide a student email or student_no and a bus_number'}); continue
+                matches=[]
+                if email:
+                    matches=c.execute("SELECT u.id FROM users u LEFT JOIN students st ON st.user_id=u.id WHERE u.role='student' AND lower(u.email)=?",(email,)).fetchall()
+                if not matches and student_no:
+                    matches=c.execute("SELECT u.id FROM users u JOIN students st ON st.user_id=u.id WHERE u.role='student' AND lower(st.student_no)=lower(?)",(student_no,)).fetchall()
+                if len(matches)!=1:
+                    errors.append({'row':row_no,'error':'Student not found or identifier is ambiguous'}); continue
+                bus=c.execute('SELECT id FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
+                if not bus:
+                    errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
+                student_id=matches[0]['id']; stamp=now()
+                c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,updated_at=excluded.updated_at',(student_id,bus['id'],stamp,stamp))
+                assigned+=1
+            c.commit()
+        except Exception:
+            c.rollback(); raise
+        finally:
+            c.close()
+        return jsonify(ok=True,assigned=assigned,skipped=len(errors),errors=errors)
+    except Exception as e:
+        return jsonify(ok=False,error='Could not read Excel file: '+str(e)),400
+
 @app.post('/api/admin/import-students')
 @auth(['admin'])
 def admin_import_students():
