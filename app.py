@@ -827,6 +827,8 @@ def admin_import_student_bus_assignments():
                     errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
                 if seat is not None and bus['capacity'] and seat>bus['capacity']:
                     errors.append({'row':row_no,'error':f'Seat {seat} exceeds bus capacity ({bus["capacity"]})'}); continue
+                if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>?',(bus['id'],seat,matches[0]['id'])).fetchone():
+                    errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
                 stamp=now()
                 c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(matches[0]['id'],bus['id'],seat,stamp,stamp))
                 assigned+=1
@@ -896,6 +898,8 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':'Student saved but enabled bus not found: '+bus_number}); continue
                     if seat is not None and bus['capacity'] and seat>bus['capacity']:
                         errors.append({'row':row_no,'error':f'Seat {seat} exceeds bus capacity ({bus["capacity"]})'}); continue
+                    if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>?',(bus['id'],seat,student_id)).fetchone():
+                        errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
                     stamp=now()
                     c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(student_id,bus['id'],seat,stamp,stamp))
                     assigned+=1
