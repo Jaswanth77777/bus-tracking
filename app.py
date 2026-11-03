@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS routes(id INTEGER PRIMARY KEY AUTOINCREMENT,code TEXT
 CREATE TABLE IF NOT EXISTS stops(id INTEGER PRIMARY KEY AUTOINCREMENT,route_id INTEGER NOT NULL REFERENCES routes(id) ON DELETE CASCADE,name TEXT NOT NULL,stop_order INTEGER NOT NULL,lat REAL,lon REAL,active INTEGER DEFAULT 1,UNIQUE(route_id,stop_order));
 CREATE TABLE IF NOT EXISTS buses(id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT UNIQUE NOT NULL,route_name TEXT NOT NULL,route_id INTEGER REFERENCES routes(id),driver_id INTEGER REFERENCES users(id),status TEXT DEFAULT 'RUNNING',capacity INTEGER DEFAULT 45,last_lat REAL,last_lon REAL,last_speed REAL DEFAULT 0,last_heading REAL DEFAULT 0,last_accuracy REAL,last_gps REAL,manual_until REAL DEFAULT 0,simulated INTEGER DEFAULT 1,enabled INTEGER DEFAULT 1,created_at TEXT,updated_at TEXT);
 CREATE TABLE IF NOT EXISTS driver_bus_assignments(id INTEGER PRIMARY KEY AUTOINCREMENT,driver_id INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,bus_id INTEGER NOT NULL REFERENCES buses(id) ON DELETE CASCADE,route_id INTEGER REFERENCES routes(id),starts_at TEXT NOT NULL,ends_at TEXT,active INTEGER DEFAULT 1,UNIQUE(driver_id,bus_id,starts_at));
+CREATE TABLE IF NOT EXISTS student_bus_assignments(id INTEGER PRIMARY KEY AUTOINCREMENT,student_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,bus_id INTEGER NOT NULL REFERENCES buses(id) ON DELETE CASCADE,assigned_at TEXT NOT NULL,updated_at TEXT);
 CREATE TABLE IF NOT EXISTS trips(id INTEGER PRIMARY KEY AUTOINCREMENT,bus_id INTEGER NOT NULL REFERENCES buses(id),driver_id INTEGER NOT NULL REFERENCES users(id),route_id INTEGER REFERENCES routes(id),started_at TEXT NOT NULL,ended_at TEXT,status TEXT DEFAULT 'ACTIVE',start_lat REAL,start_lon REAL,end_lat REAL,end_lon REAL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS gps_locations(id INTEGER PRIMARY KEY AUTOINCREMENT,bus_id INTEGER NOT NULL REFERENCES buses(id) ON DELETE CASCADE,driver_id INTEGER NOT NULL REFERENCES users(id),trip_id INTEGER REFERENCES trips(id),lat REAL NOT NULL,lon REAL NOT NULL,speed REAL DEFAULT 0,heading REAL DEFAULT 0,accuracy REAL,recorded_at TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS complaints(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER REFERENCES users(id),bus_id INTEGER REFERENCES buses(id),subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT DEFAULT 'SUBMITTED',created_at TEXT NOT NULL,updated_at TEXT);
@@ -556,6 +557,8 @@ def buses():
     c=db(); u=current_user()
     if u and u['role']=='driver':
         b=assigned_bus_for_driver(c,u['id']); rows=[b] if b else []
+    elif u and u['role']=='student':
+        r=c.execute('SELECT b.* FROM student_bus_assignments a JOIN buses b ON b.id=a.bus_id WHERE a.student_id=? AND b.enabled=1',(u['id'],)).fetchone(); rows=[r] if r else []
     else:
         rows=c.execute('SELECT * FROM buses WHERE enabled=1 ORDER BY id').fetchall()
     c.close(); return jsonify(ok=True,buses=[bus_payload(r) for r in rows],server_time=time.time())
@@ -566,6 +569,9 @@ def bus_detail(bus_id):
     if u and u['role']=='driver':
         b=assigned_bus_for_driver(c,u['id']);
         if not b or b['id']!=bus_id:c.close();return jsonify(ok=False,error='Access denied'),403
+    elif u and u['role']=='student':
+        a=c.execute('SELECT bus_id FROM student_bus_assignments WHERE student_id=?',(u['id'],)).fetchone()
+        if not a or a['bus_id']!=bus_id:c.close();return jsonify(ok=False,error='This bus is not assigned to your student account'),403
     c.close()
     if not r:return jsonify(ok=False,error='Bus not found'),404
     return jsonify(ok=True,bus=bus_payload(r))
@@ -827,6 +833,28 @@ def admin_user_create():
     except sqlite3.IntegrityError: c.rollback();c.close();return jsonify(ok=False,error='Email already exists'),400
     c.close();return jsonify(ok=True,uid=uid)
 
+@app.put('/api/admin/students/<int:student_id>/bus')
+@auth(['admin'])
+def admin_assign_student_bus(student_id):
+    d=request.get_json() or {}
+    try: bus_id=int(d.get('bus_id'))
+    except (TypeError,ValueError): return jsonify(ok=False,error='Select a valid bus'),400
+    c=db()
+    student=c.execute("SELECT id FROM users WHERE id=? AND role='student'",(student_id,)).fetchone()
+    bus=c.execute('SELECT id FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+    if not student:c.close();return jsonify(ok=False,error='Student not found'),404
+    if not bus:c.close();return jsonify(ok=False,error='Bus not found or disabled'),404
+    stamp=now()
+    c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,updated_at=excluded.updated_at',(student_id,bus_id,stamp,stamp))
+    c.commit();c.close()
+    return jsonify(ok=True,student_id=student_id,bus_id=bus_id)
+
+@app.delete('/api/admin/students/<int:student_id>/bus')
+@auth(['admin'])
+def admin_unassign_student_bus(student_id):
+    c=db(); c.execute('DELETE FROM student_bus_assignments WHERE student_id=?',(student_id,)); c.commit(); c.close()
+    return jsonify(ok=True)
+
 @app.post('/api/admin/buses')
 @auth(['admin'])
 def admin_bus_create():
@@ -999,7 +1027,7 @@ def admin_announcement():
 def admin_data():
     c=db()
     fleet=[bus_payload(r) for r in c.execute('SELECT * FROM buses ORDER BY id').fetchall()]
-    users=[dict(r) for r in c.execute('SELECT id,name,email,role,uid,phone,active FROM users ORDER BY id').fetchall()]
+    users=[dict(r) for r in c.execute('SELECT u.id,u.name,u.email,u.role,u.uid,u.phone,u.active,sba.bus_id assigned_bus_id,b.number assigned_bus_number FROM users u LEFT JOIN student_bus_assignments sba ON sba.student_id=u.id LEFT JOIN buses b ON b.id=sba.bus_id ORDER BY u.id').fetchall()]
     emergencies=[dict(r) for r in c.execute('SELECT e.*,u.name user_name,b.number bus_number FROM emergencies e LEFT JOIN users u ON u.id=e.user_id LEFT JOIN buses b ON b.id=e.bus_id ORDER BY e.id DESC LIMIT 50').fetchall()]
     complaints=[dict(r) for r in c.execute('SELECT c.*,u.name user_name,b.number bus_number FROM complaints c LEFT JOIN users u ON u.id=c.user_id LEFT JOIN buses b ON b.id=c.bus_id ORDER BY c.id DESC LIMIT 50').fetchall()]
     maintenance=[dict(r) for r in c.execute('SELECT m.*,b.number bus_number FROM maintenance_reports m LEFT JOIN buses b ON b.id=m.bus_id ORDER BY m.id DESC LIMIT 100').fetchall()]
