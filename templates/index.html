@@ -818,10 +818,11 @@ async function createStudentAndAssignBus(){
  try{
   const j=await api('/api/admin/students/create-and-assign',{method:'POST',body:JSON.stringify(data)});
   const result='STUDENT ACCOUNT CREATED\nName: '+data.name+'\nLogin email: '+j.email+'\nTemporary password: '+j.password+'\nStudent ID: '+j.uid+'\nBus: '+j.bus_number+'\nSeat: '+j.seat_number+'\nRoute: '+(j.route_name||'Not configured')+'\nStops: '+((j.stops||[]).join(' → ')||'No stops configured')+'\n\nStudent sign-in: choose Student and use the email and password above. Share the password privately.';
-  get('studentAssignedLoginResult').textContent=result;
   alert(result);
   get('assignStudentPassword').value='';
   adminCache=null;await adminPage('students');
+  const resultPanel=get('studentAssignedLoginResult');
+  if(resultPanel)resultPanel.textContent=result;
  }catch(e){toast(e.message)}
 }
 async function createCoreUser(role){
