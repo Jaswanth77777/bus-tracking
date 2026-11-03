@@ -311,6 +311,47 @@ body{background:radial-gradient(ellipse at 12% 0,#eee7fa 0,transparent 42%),#f7f
 .joy-admin-content .badge{background:#eee8f6!important;color:#56338a!important}
 @media(max-width:850px){.joy-admin-shell{display:block!important}.joy-admin-sidebar{margin-bottom:14px}.joy-admin-navlist{display:flex!important;flex-wrap:wrap!important;gap:6px!important}.joy-admin-nav{flex:1 1 145px!important}.joy-admin-heading{padding:15px!important}}
 </style>
+<style id="joy-admin-navigation-readable">
+/* High-contrast admin navigation: readable at desktop, tablet and mobile widths. */
+.joy-admin-shell .joy-admin-sidebar{
+  background:linear-gradient(145deg,#32194d 0%,#452267 100%)!important;
+  border:1px solid #563477!important;
+  color:#fff!important;
+}
+.joy-admin-shell .joy-admin-brand{color:#fff!important;border-bottom-color:rgba(255,255,255,.28)!important}
+.joy-admin-shell .joy-admin-brand span{color:#d7b8ff!important}
+.joy-admin-shell .joy-admin-brand small{color:#f0e7fa!important}
+.joy-admin-shell .joy-admin-navlist{gap:9px!important}
+.joy-admin-shell .joy-admin-nav{
+  display:flex!important;align-items:center!important;gap:12px!important;
+  min-height:56px!important;padding:13px 14px!important;
+  background:#fff!important;color:#302044!important;
+  border:1px solid #e3d7ed!important;border-radius:13px!important;
+  font-size:14px!important;font-weight:800!important;line-height:1.35!important;
+  opacity:1!important;text-shadow:none!important;
+}
+.joy-admin-shell .joy-admin-nav span{flex:0 0 24px!important;width:24px!important;color:#63369a!important;font-size:19px!important}
+.joy-admin-shell .joy-admin-nav:hover{
+  background:#f0e7fa!important;color:#29143f!important;border-color:#c9afe3!important;
+}
+.joy-admin-shell .joy-admin-nav.active,
+.joy-admin-shell .joy-admin-nav.active:hover{
+  background:#8050bd!important;color:#fff!important;border-color:#c8a8ed!important;
+}
+.joy-admin-shell .joy-admin-nav.active span{color:#fff!important}
+.joy-admin-shell .joy-admin-sidefoot{color:#f0e7fa!important;border-top-color:rgba(255,255,255,.28)!important}
+.joy-admin-shell .joy-admin-sidefoot span{color:#fff!important}
+.joy-admin-shell .joy-admin-heading h1{color:#35204f!important}
+.joy-admin-shell .joy-admin-heading p{color:#554568!important}
+@media(max-width:1000px){
+ .joy-admin-shell .joy-admin-sidebar{padding:16px!important}
+ .joy-admin-shell .joy-admin-navlist{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:560px){
+ .joy-admin-shell .joy-admin-nav{font-size:13px!important;min-height:52px!important;padding:10px!important}
+ .joy-admin-shell .joy-admin-navlist{gap:7px!important}
+}
+</style>
 </head>
 <body><div id="app"></div><div id="toast" class="toast" style="display:none"></div>
 <script>
