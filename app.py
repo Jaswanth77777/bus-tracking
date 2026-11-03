@@ -853,9 +853,11 @@ def admin_import_students():
         wb=load_workbook(BytesIO(upload.read()),read_only=True,data_only=True)
         ws=wb['Students'] if 'Students' in wb.sheetnames else wb.active
         rows=ws.iter_rows(values_only=True)
-        headers=[str(v or '').strip().lower().replace(' ','_') for v in next(rows,())]
-        if not ({'name','student_name'} & set(headers)) or not ({'email','student_email'} & set(headers)):
-            return jsonify(ok=False,error='Excel must include student name and email columns; password is optional and a secure temporary password will be generated'),400
+        headers=[str(v or '').strip().lower().replace(' ','_').replace('-','_') for v in next(rows,())]
+        aliases={'student_name':'name','student_email':'email','student_id':'student_no','university_id':'student_no','bus':'bus_number','bus_no':'bus_number','bus_id_number':'bus_number','seat':'seat_number','seat_no':'seat_number','xl_seat':'seat_number','seat_no_':'seat_number'}
+        headers=[aliases.get(h,h) for h in headers]
+        if 'name' not in headers or 'email' not in headers:
+            return jsonify(ok=False,error='Excel must include name/student_name and email/student_email columns. Password is optional.'),400
         indexes={name:i for i,name in enumerate(headers)}
         c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]
         try:
@@ -864,12 +866,20 @@ def admin_import_students():
                 def cell(key):
                     i=indexes.get(key)
                     return str(row[i]).strip() if i is not None and i<len(row) and row[i] is not None else ''
-                name=cell('name') or cell('student_name')
-                email=(cell('email') or cell('student_email')).lower()
-                password=cell('password'); student_no=cell('student_no') or cell('student_id')
-                bus_number=cell('bus_number').upper(); seat_text=cell('seat_number')
+                name=cell('name')
+                email=cell('email').lower()
+                password=cell('password')
+                student_no=cell('student_no')
+                bus_number=cell('bus_number').upper()
+                seat_text=cell('seat_number')
                 if not name or '@' not in email or (password and len(password)<8):
                     errors.append({'row':row_no,'error':'Name and valid email are required; supplied passwords must be at least 8 characters'}); continue
+                try:
+                    seat=int(float(seat_text)) if seat_text else None
+                    if seat is not None and seat<1: raise ValueError()
+                except ValueError:
+                    errors.append({'row':row_no,'error':'Seat number must be a positive whole number'}); continue
+                existing=c.execute("SELECT id FROM users WHERE lower(email)=? AND role='student'",(email,)).fetchone()
                 bus=None
                 if bus_number:
                     bus=c.execute('SELECT id,capacity FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
@@ -877,14 +887,9 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
                     if seat is not None and bus['capacity'] and seat>bus['capacity']:
                         errors.append({'row':row_no,'error':f'Seat {seat} exceeds bus capacity ({bus["capacity"]})'}); continue
-                    if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>COALESCE((SELECT id FROM users WHERE lower(email)=?),-1)',(bus['id'],seat,email)).fetchone():
+                    exclude_id=existing['id'] if existing else -1
+                    if seat is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>?',(bus['id'],seat,exclude_id)).fetchone():
                         errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
-                try:
-                    seat=int(float(seat_text)) if seat_text else None
-                    if seat is not None and seat<1: raise ValueError()
-                except ValueError:
-                    errors.append({'row':row_no,'error':'Seat number must be a positive whole number'}); continue
-                existing=c.execute("SELECT id FROM users WHERE lower(email)=? AND role='student'",(email,)).fetchone()
                 if existing:
                     student_id=existing['id']; skipped+=1
                     c.execute('INSERT OR IGNORE INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
