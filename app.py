@@ -243,7 +243,8 @@ def init_db():
         c.execute('UPDATE buses SET business_id=? WHERE number=? AND (business_id IS NULL OR business_id=0)',(business['id'],number))
     # Stable public demo accounts. These accounts are intentionally read-only.
     demo_accounts=[
-        ('Demo Student','demo.student@joyuniversity.edu','JoyStudent#2026','student','DEMO-STUDENT'),
+        ('Demo Student One','demo.student@joyuniversity.edu','JoyStudent#2026','student','DEMO-STUDENT'),
+        ('Demo Student Two','demo.student2@joyuniversity.edu','JoyStudent2#2026','student','DEMO-STUDENT-2'),
         ('Demo Driver','demo.driver@joyuniversity.edu','JoyDriver#2026','driver','DEMO-DRIVER'),
         ('Demo Admin','demo.admin@joyuniversity.edu','JoyAdmin#2026','admin','DEMO-ADMIN'),
     ]
@@ -253,9 +254,18 @@ def init_db():
         c.execute('UPDATE users SET name=?,password=?,role=?,active=1,updated_at=? WHERE lower(email)=?',
                   (demo_name,generate_password_hash(demo_password),demo_role,now(),demo_email))
     demo_student=c.execute("SELECT id FROM users WHERE email='demo.student@joyuniversity.edu'").fetchone()
+    demo_student2=c.execute("SELECT id FROM users WHERE email='demo.student2@joyuniversity.edu'").fetchone()
     demo_driver=c.execute("SELECT id FROM users WHERE email='demo.driver@joyuniversity.edu'").fetchone()
     if demo_student:
         c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(demo_student['id'],now()))
+        demo_bus=c.execute("SELECT id FROM buses WHERE number='JOY-01' AND enabled=1").fetchone()
+        if demo_bus:
+            c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(demo_student['id'],demo_bus['id'],1,now(),now()))
+    if demo_student2:
+        c.execute('INSERT OR IGNORE INTO students(user_id,created_at) VALUES(?,?)',(demo_student2['id'],now()))
+        demo_bus2=c.execute("SELECT id FROM buses WHERE number='JOY-02' AND enabled=1").fetchone()
+        if demo_bus2:
+            c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(demo_student2['id'],demo_bus2['id'],2,now(),now()))
     if demo_driver:
         c.execute('INSERT OR IGNORE INTO drivers(user_id,created_at) VALUES(?,?)',(demo_driver['id'],now()))
         demo_bus=c.execute("SELECT id,route_id FROM buses WHERE number='JOY-02'").fetchone()
@@ -286,7 +296,7 @@ def auth(roles=None):
             if not u:return jsonify(ok=False,error='Login required'),401
             if roles and u['role'] not in roles:return jsonify(ok=False,error='Access denied'),403
             # Public demo accounts are read-only; they must never modify university records.
-            if u.get('email','').lower() in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu','demo.student@joyuniversity.edu','demo.driver@joyuniversity.edu','demo.admin@joyuniversity.edu') and request.method in ('POST','PUT','PATCH','DELETE'):
+            if u.get('email','').lower() in ('student@joyuniversity.edu','driver@joyuniversity.edu','demo-admin@joyuniversity.edu','demo.student@joyuniversity.edu','demo.student2@joyuniversity.edu','demo.driver@joyuniversity.edu','demo.admin@joyuniversity.edu') and request.method in ('POST','PUT','PATCH','DELETE'):
                 return jsonify(ok=False,error='Demo accounts are read-only. Contact the university administrator for operational access.'),403
             # Demo administrator is a presentation-only account and cannot access private admin APIs.
             if u.get('email','').lower() == 'demo-admin@joyuniversity.edu':
