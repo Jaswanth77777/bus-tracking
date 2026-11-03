@@ -853,7 +853,7 @@ def admin_import_students():
         if 'password' not in headers or not ({'name','student_name'} & set(headers)) or not ({'email','student_email'} & set(headers)):
             return jsonify(ok=False,error='Excel must include student name, email and password columns'),400
         indexes={name:i for i,name in enumerate(headers)}
-        c=db(); created=0; skipped=0; assigned=0; errors=[]
+        c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]
         try:
             for row_no,row in enumerate(rows,start=2):
                 if not row or not any(v is not None and str(v).strip() for v in row): continue
@@ -862,10 +862,10 @@ def admin_import_students():
                     return str(row[i]).strip() if i is not None and i<len(row) and row[i] is not None else ''
                 name=cell('name') or cell('student_name')
                 email=(cell('email') or cell('student_email')).lower()
-                password=cell('password'); student_no=cell('student_no')
+                password=cell('password'); student_no=cell('student_no') or cell('student_id')
                 bus_number=cell('bus_number').upper(); seat_text=cell('seat_number')
-                if not name or '@' not in email or len(password)<8:
-                    errors.append({'row':row_no,'error':'Name, valid email and password (8+ characters) are required'}); continue
+                if not name or '@' not in email or (password and len(password)<8):
+                    errors.append({'row':row_no,'error':'Name and valid email are required; supplied passwords must be at least 8 characters'}); continue
                 try:
                     seat=int(float(seat_text)) if seat_text else None
                     if seat is not None and seat<1: raise ValueError()
@@ -881,11 +881,13 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':'Email is already used by a non-student account'}); continue
                     n=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
                     uid=f"JOY-ST-{datetime.now().year}-{n:04d}"
+                    issued_password=password or secrets.token_urlsafe(9)
                     try:
-                        cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(name,email,generate_password_hash(password),'student',uid,cell('phone'),1,now(),now()))
+                        cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(name,email,generate_password_hash(issued_password),'student',uid,cell('phone'),1,now(),now()))
                         student_id=cur.lastrowid
                         c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
                         created+=1
+                        credentials.append({'name':name,'email':email,'password':issued_password,'student_id':uid})
                     except sqlite3.IntegrityError:
                         errors.append({'row':row_no,'error':'Could not create student; check duplicate student number or email'}); continue
                 if bus_number:
@@ -902,7 +904,7 @@ def admin_import_students():
             c.rollback(); raise
         finally:
             c.close()
-        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,errors=errors)
+        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,credentials=credentials,errors=errors)
     except Exception as e:
         return jsonify(ok=False,error='Could not read Excel file: '+str(e)),400
 
