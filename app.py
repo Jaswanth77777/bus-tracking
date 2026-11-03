@@ -943,7 +943,11 @@ def admin_create_student_and_assign_bus():
     name=str(d.get('name','')).strip()
     email=str(d.get('email','')).strip().lower()
     password=str(d.get('password',''))
+    if not password: password=secrets.token_urlsafe(12)
     student_no=str(d.get('student_no','')).strip()[:40]
+    try: seat_number=int(d.get('seat_number')) if d.get('seat_number') not in (None,'') else None
+    except (TypeError,ValueError): return jsonify(ok=False,error='Seat number must be a positive whole number'),400
+    if seat_number is not None and seat_number<1: return jsonify(ok=False,error='Seat number must be a positive whole number'),400
     phone=str(d.get('phone','')).strip()[:25]
     department=str(d.get('department','')).strip()[:80]
     year=str(d.get('year','')).strip()[:30]
@@ -953,9 +957,13 @@ def admin_create_student_and_assign_bus():
         return jsonify(ok=False,error='Enter a valid student name, email and password (at least 8 characters)'),400
     c=db()
     try:
-        bus=c.execute('SELECT id,number,route_id,route_name FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+        bus=c.execute('SELECT id,number,route_id,route_name,capacity FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
         if not bus:
             c.close(); return jsonify(ok=False,error='Selected bus is unavailable'),400
+        if seat_number is not None and bus['capacity'] and seat_number>bus['capacity']:
+            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({bus["capacity"]})'),400
+        if seat_number is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=?',(bus_id,seat_number)).fetchone():
+            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} is already assigned on {bus["number"]}'),409
         count=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
         uid=f"JOY-ST-{datetime.now().year}-{count:04d}"
         stamp=now()
@@ -964,12 +972,12 @@ def admin_create_student_and_assign_bus():
         student_id=c.execute('SELECT last_insert_rowid() id').fetchone()['id']
         c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',
                   (student_id,student_no,department,year,stamp))
-        c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?)',
-                  (student_id,bus_id,stamp,stamp))
+        c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?)',
+                  (student_id,bus_id,seat_number,stamp,stamp))
         c.commit()
         route=c.execute('SELECT name FROM routes WHERE id=?',(bus['route_id'],)).fetchone() if bus['route_id'] else None
         stops=c.execute('SELECT name FROM stops WHERE route_id=? AND active=1 ORDER BY stop_order',(bus['route_id'],)).fetchall() if bus['route_id'] else []
-        result={'ok':True,'student_id':student_id,'uid':uid,'email':email,'bus_number':bus['number'],
+        result={'ok':True,'student_id':student_id,'uid':uid,'email':email,'password':password,'bus_number':bus['number'],'seat_number':seat_number,
                 'route_name':route['name'] if route else bus['route_name'],
                 'stops':[x['name'] for x in stops]}
     except sqlite3.IntegrityError:
@@ -987,15 +995,22 @@ def admin_assign_student_bus(student_id):
     d=request.get_json() or {}
     try: bus_id=int(d.get('bus_id'))
     except (TypeError,ValueError): return jsonify(ok=False,error='Select a valid bus'),400
+    try: seat_number=int(d.get('seat_number')) if d.get('seat_number') not in (None,'') else None
+    except (TypeError,ValueError): return jsonify(ok=False,error='Seat number must be a positive whole number'),400
+    if seat_number is not None and seat_number<1:return jsonify(ok=False,error='Seat number must be a positive whole number'),400
     c=db()
     student=c.execute("SELECT id FROM users WHERE id=? AND role='student'",(student_id,)).fetchone()
-    bus=c.execute('SELECT id FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+    bus=c.execute('SELECT id,number,capacity FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
     if not student:c.close();return jsonify(ok=False,error='Student not found'),404
     if not bus:c.close();return jsonify(ok=False,error='Bus not found or disabled'),404
+    if seat_number is not None and bus['capacity'] and seat_number>bus['capacity']:
+        c.close();return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({bus["capacity"]})'),400
+    if seat_number is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>?',(bus_id,seat_number,student_id)).fetchone():
+        c.close();return jsonify(ok=False,error=f'Seat {seat_number} is already assigned on {bus["number"]}'),409
     stamp=now()
-    c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,updated_at=excluded.updated_at',(student_id,bus_id,stamp,stamp))
+    c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(student_id,bus_id,seat_number,stamp,stamp))
     c.commit();c.close()
-    return jsonify(ok=True,student_id=student_id,bus_id=bus_id)
+    return jsonify(ok=True,student_id=student_id,bus_id=bus_id,seat_number=seat_number,bus_number=bus['number'])
 
 @app.delete('/api/admin/students/<int:student_id>/bus')
 @auth(['admin'])
