@@ -798,7 +798,7 @@ def admin_import_student_bus_assignments():
         ws=wb['Student Bus Assignments'] if 'Student Bus Assignments' in wb.sheetnames else wb.active
         rows=ws.iter_rows(values_only=True)
         headers=[str(v or '').strip().lower().replace(' ','_').replace('-','_') for v in next(rows,())]
-        aliases={'student_name':'name','student_email':'email','student_id':'student_no','university_id':'student_no','bus':'bus_number','bus_no':'bus_number','bus_id_number':'bus_number','seat':'seat_number','seat_no':'seat_number','xl_seat':'seat_number','seat_no_':'seat_number'}
+        aliases={'student_name':'name','student_email':'email','student_id':'student_no','university_id':'student_no','bus':'bus_number','bus_no':'bus_number','bus_id_number':'bus_number','seat':'seat_number','seat_no':'seat_number','xl_seat':'seat_number','xl_seat_no':'seat_number','xl_seat_number':'seat_number','seat_no_':'seat_number'}
         headers=[aliases.get(h,h) for h in headers]
         if 'bus_number' not in headers or not ({'email','student_no','student_email'} & set(headers)):
             return jsonify(ok=False,error='Excel must include bus_number and a student email or student number'),400
@@ -859,7 +859,7 @@ def admin_import_students():
         if 'name' not in headers or 'email' not in headers:
             return jsonify(ok=False,error='Excel must include name/student_name and email/student_email columns. Password is optional.'),400
         indexes={name:i for i,name in enumerate(headers)}
-        c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]
+        c=db(); created=0; skipped=0; assigned=0; errors=[]; credentials=[]; assignment_details=[]
         try:
             for row_no,row in enumerate(rows,start=2):
                 if not row or not any(v is not None and str(v).strip() for v in row): continue
@@ -874,15 +874,21 @@ def admin_import_students():
                 seat_text=cell('seat_number')
                 if not name or '@' not in email or (password and len(password)<8):
                     errors.append({'row':row_no,'error':'Name and valid email are required; supplied passwords must be at least 8 characters'}); continue
+                if seat_text and not bus_number:
+                    errors.append({'row':row_no,'error':'A bus_number is required when a seat_number is supplied'}); continue
                 try:
                     seat=int(float(seat_text)) if seat_text else None
                     if seat is not None and seat<1: raise ValueError()
                 except ValueError:
                     errors.append({'row':row_no,'error':'Seat number must be a positive whole number'}); continue
                 existing=c.execute("SELECT id FROM users WHERE lower(email)=? AND role='student'",(email,)).fetchone()
+                if student_no:
+                    duplicate_no=c.execute('SELECT user_id FROM students WHERE lower(student_no)=lower(?) AND user_id<>?',(student_no,existing['id'] if existing else -1)).fetchone()
+                    if duplicate_no:
+                        errors.append({'row':row_no,'error':'Student number is already used by another account: '+student_no}); continue
                 bus=None
                 if bus_number:
-                    bus=c.execute('SELECT id,capacity FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
+                    bus=c.execute('SELECT id,number,capacity,route_id,route_name FROM buses WHERE upper(number)=? AND enabled=1',(bus_number,)).fetchone()
                     if not bus:
                         errors.append({'row':row_no,'error':'Enabled bus not found: '+bus_number}); continue
                     if seat is not None and bus['capacity'] and seat>bus['capacity']:
@@ -892,32 +898,38 @@ def admin_import_students():
                         errors.append({'row':row_no,'error':f'Seat {seat} is already assigned on {bus_number}'}); continue
                 if existing:
                     student_id=existing['id']; skipped+=1
-                    c.execute('INSERT OR IGNORE INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
-                    if student_no: c.execute('UPDATE students SET student_no=?,department=?,year=? WHERE user_id=?',(student_no,cell('department'),cell('year'),student_id))
+                    c.execute('INSERT OR IGNORE INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no or None,cell('department'),cell('year'),now()))
+                    if student_no: c.execute('UPDATE students SET student_no=?,department=?,year=? WHERE user_id=?',(student_no or None,cell('department'),cell('year'),student_id))
                 else:
                     if c.execute('SELECT 1 FROM users WHERE lower(email)=?',(email,)).fetchone():
                         errors.append({'row':row_no,'error':'Email is already used by a non-student account'}); continue
                     n=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
                     uid=f"JOY-ST-{datetime.now().year}-{n:04d}"
                     issued_password=password or secrets.token_urlsafe(9)
+                    c.execute('SAVEPOINT create_student_row')
                     try:
                         cur=c.execute('INSERT INTO users(name,email,password,role,uid,phone,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(name,email,generate_password_hash(issued_password),'student',uid,cell('phone'),1,now(),now()))
                         student_id=cur.lastrowid
-                        c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no,cell('department'),cell('year'),now()))
+                        c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',(student_id,student_no or None,cell('department'),cell('year'),now()))
+                        c.execute('RELEASE SAVEPOINT create_student_row')
                         created+=1
                         credentials.append({'name':name,'email':email,'password':issued_password,'student_id':uid})
                     except sqlite3.IntegrityError:
+                        c.execute('ROLLBACK TO SAVEPOINT create_student_row')
+                        c.execute('RELEASE SAVEPOINT create_student_row')
                         errors.append({'row':row_no,'error':'Could not create student; check duplicate student number or email'}); continue
                 if bus:
                     stamp=now()
                     c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(student_id,bus['id'],seat,stamp,stamp))
                     assigned+=1
+                    route=c.execute('SELECT name FROM routes WHERE id=?',(bus['route_id'],)).fetchone() if bus['route_id'] else None
+                    assignment_details.append({'name':name,'email':email,'bus_number':bus['number'],'seat_number':seat,'route_name':route['name'] if route else bus['route_name']})
             c.commit()
         except Exception:
             c.rollback(); raise
         finally:
             c.close()
-        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,credentials=credentials,errors=errors)
+        return jsonify(ok=True,created=created,skipped=skipped,assigned=assigned,credentials=credentials,assignments=assignment_details,errors=errors)
     except Exception as e:
         return jsonify(ok=False,error='Could not read Excel file: '+str(e)),400
 
@@ -943,7 +955,11 @@ def admin_create_student_and_assign_bus():
     name=str(d.get('name','')).strip()
     email=str(d.get('email','')).strip().lower()
     password=str(d.get('password',''))
-    student_no=str(d.get('student_no','')).strip()[:40]
+    if not password: password=secrets.token_urlsafe(12)
+    student_no=str(d.get('student_no','')).strip()[:40] or None
+    try: seat_number=int(d.get('seat_number')) if d.get('seat_number') not in (None,'') else None
+    except (TypeError,ValueError): return jsonify(ok=False,error='Seat number must be a positive whole number'),400
+    if seat_number is not None and seat_number<1: return jsonify(ok=False,error='Seat number must be a positive whole number'),400
     phone=str(d.get('phone','')).strip()[:25]
     department=str(d.get('department','')).strip()[:80]
     year=str(d.get('year','')).strip()[:30]
@@ -953,9 +969,15 @@ def admin_create_student_and_assign_bus():
         return jsonify(ok=False,error='Enter a valid student name, email and password (at least 8 characters)'),400
     c=db()
     try:
-        bus=c.execute('SELECT id,number,route_id,route_name FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+        bus=c.execute('SELECT id,number,route_id,route_name,capacity FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
         if not bus:
             c.close(); return jsonify(ok=False,error='Selected bus is unavailable'),400
+        if seat_number is not None and bus['capacity'] and seat_number>bus['capacity']:
+            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({bus["capacity"]})'),400
+        if seat_number is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=?',(bus_id,seat_number)).fetchone():
+            c.close(); return jsonify(ok=False,error=f'Seat {seat_number} is already assigned on {bus["number"]}'),409
+        if student_no and c.execute('SELECT 1 FROM students WHERE lower(student_no)=lower(?)',(student_no,)).fetchone():
+            c.close(); return jsonify(ok=False,error='Student number is already used by another student'),409
         count=c.execute("SELECT COUNT(*) n FROM users WHERE role='student'").fetchone()['n']+1
         uid=f"JOY-ST-{datetime.now().year}-{count:04d}"
         stamp=now()
@@ -964,12 +986,12 @@ def admin_create_student_and_assign_bus():
         student_id=c.execute('SELECT last_insert_rowid() id').fetchone()['id']
         c.execute('INSERT INTO students(user_id,student_no,department,year,created_at) VALUES(?,?,?,?,?)',
                   (student_id,student_no,department,year,stamp))
-        c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?)',
-                  (student_id,bus_id,stamp,stamp))
+        c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?)',
+                  (student_id,bus_id,seat_number,stamp,stamp))
         c.commit()
         route=c.execute('SELECT name FROM routes WHERE id=?',(bus['route_id'],)).fetchone() if bus['route_id'] else None
         stops=c.execute('SELECT name FROM stops WHERE route_id=? AND active=1 ORDER BY stop_order',(bus['route_id'],)).fetchall() if bus['route_id'] else []
-        result={'ok':True,'student_id':student_id,'uid':uid,'email':email,'bus_number':bus['number'],
+        result={'ok':True,'student_id':student_id,'uid':uid,'email':email,'password':password,'bus_number':bus['number'],'seat_number':seat_number,
                 'route_name':route['name'] if route else bus['route_name'],
                 'stops':[x['name'] for x in stops]}
     except sqlite3.IntegrityError:
@@ -987,15 +1009,22 @@ def admin_assign_student_bus(student_id):
     d=request.get_json() or {}
     try: bus_id=int(d.get('bus_id'))
     except (TypeError,ValueError): return jsonify(ok=False,error='Select a valid bus'),400
+    try: seat_number=int(d.get('seat_number')) if d.get('seat_number') not in (None,'') else None
+    except (TypeError,ValueError): return jsonify(ok=False,error='Seat number must be a positive whole number'),400
+    if seat_number is not None and seat_number<1:return jsonify(ok=False,error='Seat number must be a positive whole number'),400
     c=db()
     student=c.execute("SELECT id FROM users WHERE id=? AND role='student'",(student_id,)).fetchone()
-    bus=c.execute('SELECT id FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
+    bus=c.execute('SELECT id,number,capacity FROM buses WHERE id=? AND enabled=1',(bus_id,)).fetchone()
     if not student:c.close();return jsonify(ok=False,error='Student not found'),404
     if not bus:c.close();return jsonify(ok=False,error='Bus not found or disabled'),404
+    if seat_number is not None and bus['capacity'] and seat_number>bus['capacity']:
+        c.close();return jsonify(ok=False,error=f'Seat {seat_number} exceeds bus capacity ({bus["capacity"]})'),400
+    if seat_number is not None and c.execute('SELECT 1 FROM student_bus_assignments WHERE bus_id=? AND seat_number=? AND student_id<>?',(bus_id,seat_number,student_id)).fetchone():
+        c.close();return jsonify(ok=False,error=f'Seat {seat_number} is already assigned on {bus["number"]}'),409
     stamp=now()
-    c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,assigned_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,updated_at=excluded.updated_at',(student_id,bus_id,stamp,stamp))
+    c.execute('INSERT INTO student_bus_assignments(student_id,bus_id,seat_number,assigned_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET bus_id=excluded.bus_id,seat_number=excluded.seat_number,updated_at=excluded.updated_at',(student_id,bus_id,seat_number,stamp,stamp))
     c.commit();c.close()
-    return jsonify(ok=True,student_id=student_id,bus_id=bus_id)
+    return jsonify(ok=True,student_id=student_id,bus_id=bus_id,seat_number=seat_number,bus_number=bus['number'])
 
 @app.delete('/api/admin/students/<int:student_id>/bus')
 @auth(['admin'])
