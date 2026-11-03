@@ -763,7 +763,21 @@ function adminExport(key){
  adminCsv(key,[s.head,...s.rows.map(x=>s.fields.map(k=>x[k]))]);
 }
 function adminExportAll(){['students','drivers','admins','buses','routes','stops','assignments','trips','attendance','complaints','emergencies','maintenance'].forEach((k,i)=>setTimeout(()=>adminExport(k),i*350));}
-async function importStudentsExcel(){const input=$('#studentImportFile'),file=input&&input.files[0];if(!file)return toast('Choose an Excel .xlsx file first');const data=new FormData();data.append('file',file);try{const res=await fetch('/api/admin/import-students',{method:'POST',body:data,credentials:'same-origin',headers:{'X-CSRF-Token':document.querySelector('meta[name=csrf-token]')?.content||''}});const j=await res.json();if(!res.ok||!j.ok)throw new Error(j.error||'Import failed');let msg='Created '+j.created+' student accounts; skipped existing '+j.skipped+'; assigned buses '+(j.assigned||0)+'.';if(j.credentials&&j.credentials.length){msg+='\\n\\nNEW STUDENT LOGIN DETAILS (copy and share privately):\\n'+j.credentials.map(x=>x.name+' | '+x.email+' | Password: '+x.password+' | ID: '+x.student_id).join('\\n')}if(j.errors&&j.errors.length)msg+='\\nErrors: '+j.errors.map(x=>'Row '+x.row+': '+x.error).join(' | ');$('#studentImportResult').textContent=msg;alert(msg);toast('Excel import complete');adminCache=null;adminPage('students')}catch(e){toast(e.message)}}
+async function importStudentsExcel(){
+ const input=$('#studentImportFile'),file=input&&input.files[0];
+ if(!file)return toast('Choose an Excel .xlsx file first');
+ const data=new FormData();data.append('file',file);
+ try{
+  const res=await fetch('/api/admin/import-students',{method:'POST',body:data,credentials:'same-origin',headers:{'X-CSRF-Token':document.querySelector('meta[name=csrf-token]')?.content||''}});
+  const j=await res.json();if(!res.ok||!j.ok)throw new Error(j.error||'Import failed');
+  let msg='IMPORT COMPLETED\nCreated student accounts: '+j.created+'\nExisting accounts updated/skipped: '+j.skipped+'\nBus and seat assignments saved: '+(j.assigned||0)+'.';
+  if(j.credentials&&j.credentials.length)msg+='\n\nNEW STUDENT LOGIN DETAILS (copy and share privately):\n'+j.credentials.map(x=>x.name+' | '+x.email+' | Password: '+x.password+' | Student ID: '+x.student_id).join('\n');
+  if(j.assignments&&j.assignments.length)msg+='\n\nSAVED BUS ASSIGNMENTS:\n'+j.assignments.map(x=>x.name+' | '+x.email+' | Bus: '+x.bus_number+' | XL Seat: '+(x.seat_number??'Not specified')+' | Route: '+(x.route_name||'Not configured')).join('\n');
+  if(j.errors&&j.errors.length)msg+='\n\nROWS NEEDING CORRECTION:\n'+j.errors.map(x=>'Row '+x.row+': '+x.error).join('\n');
+  $('#studentImportResult').textContent=msg;alert(msg);toast('Excel import completed. Check the result details.');
+  adminCache=null;await adminPage('students');
+ }catch(e){toast(e.message);const out=$('#studentImportResult');if(out)out.textContent='Import failed: '+e.message;}
+}
 async function importStudentBusAssignments(){
  const input=$('#studentBusImportFile'),file=input&&input.files[0];
  if(!file)return toast('Choose an Excel .xlsx assignment file first');
